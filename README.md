@@ -1,1 +1,1 @@
-# infinte-grid-menu
+# Infinite Grid Menu
