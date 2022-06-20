@@ -13,7 +13,7 @@ let resizeTimeoutId;
 
 window.addEventListener('load', () => {
     const canvas = document.getElementById('infinite-grid-menu-canvas');
-    sketch = new InfiniteGridMenu(canvas, () => sketch.run());
+    sketch = new InfiniteGridMenu(canvas, (sketch) => sketch.run());
 });
 
 window.addEventListener('resize', () => {
