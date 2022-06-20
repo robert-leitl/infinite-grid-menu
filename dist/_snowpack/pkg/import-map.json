@@ -1,0 +1,5 @@
+{
+  "imports": {
+    "gl-matrix": "./gl-matrix.js"
+  }
+}

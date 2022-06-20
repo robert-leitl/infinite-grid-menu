@@ -10,7 +10,6 @@ module.exports = {
     port: 1234
   },
   buildOptions: {
-    out: './dist/',
-    baseUrl: '/infinite-grid-menu/dist/'
+    out: './dist/'
   },
 };

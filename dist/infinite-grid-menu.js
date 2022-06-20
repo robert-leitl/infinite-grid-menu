@@ -1,4 +1,13 @@
 import { resizeCanvasToDisplaySize } from "./utils/canvas-utils.js";
+import { vec2 } from "./_snowpack/pkg/gl-matrix.js";
+
+class MenuItem {
+    constructor(label, item) {
+        this.label = label;
+        this.item = item;
+        this.position = vec2.create();
+    }
+}
 
 export class InfiniteGridMenu {
 
@@ -7,30 +16,12 @@ export class InfiniteGridMenu {
     #frames = 0;
 
     items = [
-        {
-            label: 'Item 1',
-            color: '#f00'
-        },
-        {
-            label: 'Item 2',
-            color: '#f00'
-        },
-        {
-            label: 'Item 3',
-            color: '#00f'
-        },
-        {
-            label: 'Item 4',
-            color: '#ff0'
-        },
-        {
-            label: 'Item 5',
-            color: '#f0f'
-        },
-        {
-            label: 'Item 6',
-            color: '#0ff'
-        }
+        new MenuItem('Red', '#f00'),
+        new MenuItem('Green', '#0f0'),
+        new MenuItem('Blue', '#00f'),
+        new MenuItem('Yellow', '#ff0'),
+        new MenuItem('Magenta', '#f0f'),
+        new MenuItem('Cyan', '#0ff')
     ]
 
     constructor(canvas, onInit = null) {

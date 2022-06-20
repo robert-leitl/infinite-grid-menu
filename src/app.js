@@ -1,4 +1,4 @@
-import { InfiniteGridMenu } from "./infinite-grid-menu.js";
+import { InfiniteGridMenu } from "./infinite-grid-menu";
 
 const queryString = window.location.search;
 const urlParams = new URLSearchParams(queryString);
