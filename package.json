@@ -1,0 +1,11 @@
+{
+  "name": "infinite-grid-menu",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "snowpack dev",
+    "build": "snowpack build"
+  },
+  "devDependencies": {
+    "snowpack": "^3.8.8"
+  }
+}
