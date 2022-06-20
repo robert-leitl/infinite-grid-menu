@@ -10,6 +10,7 @@ module.exports = {
     port: 1234
   },
   buildOptions: {
-    out: './dist/'
+    out: './dist/',
+    metaUrlPath: 'web_modules'
   },
 };

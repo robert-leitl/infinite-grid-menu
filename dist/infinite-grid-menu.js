@@ -1,5 +1,5 @@
 import { resizeCanvasToDisplaySize } from "./utils/canvas-utils.js";
-import { vec2 } from "./_snowpack/pkg/gl-matrix.js";
+import { vec2 } from "./web_modules/pkg/gl-matrix.js";
 
 class MenuItem {
     constructor(label, item) {
