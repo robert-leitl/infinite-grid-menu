@@ -6,6 +6,33 @@ export class InfiniteGridMenu {
     #deltaTime = 0;
     #frames = 0;
 
+    items = [
+        {
+            label: 'Item 1',
+            color: '#f00'
+        },
+        {
+            label: 'Item 2',
+            color: '#f00'
+        },
+        {
+            label: 'Item 3',
+            color: '#00f'
+        },
+        {
+            label: 'Item 4',
+            color: '#ff0'
+        },
+        {
+            label: 'Item 5',
+            color: '#f0f'
+        },
+        {
+            label: 'Item 6',
+            color: '#0ff'
+        }
+    ]
+
     constructor(canvas, onInit = null) {
         this.canvas = canvas;
 
