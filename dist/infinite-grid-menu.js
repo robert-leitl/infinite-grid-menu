@@ -26,21 +26,20 @@ export class InfiniteGridMenu {
 
     scrollOffset = vec2.create();
 
-    GRID_SPACING = 400;
+    GRID_SPACING = 100;
     GRID_ITEM_COUNT_PADDING = 2;
-    GRID_ITEM_RADIUS = 25;
+    GRID_ITEM_RADIUS = 50;
     GRID_COLUMN_DIAMOND_OFFSET = 0.5;
     GRID_ROW_DIAMOND_OFFSET = Math.sqrt(3) / 2;
 
     items = [
-        new MenuItem('Red', '#f00'),
-        new MenuItem('Green', '#0f0'),
-        new MenuItem('Blue', '#00f'),
-        new MenuItem('Yellow', '#ff0'),
-        new MenuItem('Magenta', '#f0f'),
-        new MenuItem('Yellow', '#333'),
-        new MenuItem('Magenta', '#aaa'),
-        new MenuItem('Magenta', '#eee'),
+        new MenuItem('Red', '#EC7063'),
+        new MenuItem('Green', '#5DADE2'),
+        new MenuItem('Blue', '#F4D03F'),
+        new MenuItem('Yellow', '#58D68D'),
+        new MenuItem('Magenta', '#AF7AC5'),
+        new MenuItem('Yellow', '#566573'),
+        new MenuItem('Magenta', '#DC7633'),
     ];
 
     gridItems = [];
@@ -186,6 +185,8 @@ export class InfiniteGridMenu {
         this.gridSize[1] = spacing[1] * this.gridItemCount[1];
 
         const positionPaddingOffset = this.GRID_COLUMN_DIAMOND_OFFSET;
+        const viewportCenter = vec2.scale(vec2.create(), this.viewportSize, 0.5);
+        const maxViewportSize = Math.max(this.viewportSize[0], this.viewportSize[1]);
 
         for(let iY=0; iY<this.gridItemCount[1]; ++iY) {
             for(let iX=0; iX<this.gridItemCount[0]; ++iX) {
@@ -196,7 +197,11 @@ export class InfiniteGridMenu {
                 position[1] += (iX % 2) * this.GRID_COLUMN_DIAMOND_OFFSET * this.GRID_SPACING * this.gridSpacingScale;
                 this.#wrapPositionComponent(position, 0);
                 this.#wrapPositionComponent(position, 1);
-                this.items[2].render(this.context, this.GRID_ITEM_RADIUS, position);
+
+                const scale = 1 - Math.min(1, Math.max(0, vec2.length(vec2.subtract(vec2.create(), position, viewportCenter)) / maxViewportSize));
+
+                const itemIndex = (iX + iY * this.gridItemCount[0]) % this.items.length;
+                this.items[itemIndex].render(this.context, this.GRID_ITEM_RADIUS * scale, position);
             }
         }
     }
