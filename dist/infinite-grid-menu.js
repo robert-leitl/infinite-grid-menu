@@ -2,16 +2,17 @@ import { resizeCanvasToDisplaySize } from "./utils/canvas-utils.js";
 import { vec2 } from "./web_modules/pkg/gl-matrix.js";
 
 class MenuItem {
+
     constructor(label, color) {
         this.label = label;
         this.color = color;
     }
 
-    render(/** @type {CanvasRenderingContext2D} */ ctx, position) {
+    render(/** @type {CanvasRenderingContext2D} */ ctx, radius, position) {
         ctx.strokeStyle = null;
         ctx.beginPath();
         ctx.fillStyle = this.color;
-        ctx.arc(position[0], position[1], 25, 0, 2 * Math.PI);
+        ctx.arc(position[0], position[1], radius, 0, 2 * Math.PI);
         ctx.fill();
         ctx.closePath();
     }
@@ -25,6 +26,12 @@ export class InfiniteGridMenu {
 
     scrollOffset = vec2.create();
 
+    GRID_SPACING = 400;
+    GRID_ITEM_COUNT_PADDING = 2;
+    GRID_ITEM_RADIUS = 25;
+    GRID_COLUMN_DIAMOND_OFFSET = 0.5;
+    GRID_ROW_DIAMOND_OFFSET = Math.sqrt(3) / 2;
+
     items = [
         new MenuItem('Red', '#f00'),
         new MenuItem('Green', '#0f0'),
@@ -34,7 +41,9 @@ export class InfiniteGridMenu {
         new MenuItem('Yellow', '#333'),
         new MenuItem('Magenta', '#aaa'),
         new MenuItem('Magenta', '#eee'),
-    ]
+    ];
+
+    gridItems = [];
 
     constructor(canvas, onInit = null) {
         this.canvas = canvas;
@@ -43,7 +52,15 @@ export class InfiniteGridMenu {
     }
 
     resize() {
+        this.viewportSize = vec2.set(
+            this.viewportSize,
+            this.canvas.clientWidth,
+            this.canvas.clientHeight
+        );
+
         resizeCanvasToDisplaySize(this.canvas);
+
+        this.#resizeItemGrid();
     }
 
     run(time = 0) {
@@ -60,21 +77,93 @@ export class InfiniteGridMenu {
     #init(onInit) {
         this.context = this.canvas.getContext('2d');
 
-        this.itemCount = this.items.length;
-        this.gridWidth = Math.ceil(Math.sqrt(this.itemCount));
-        this.gridHeight = Math.ceil(this.itemCount / this.gridWidth);
-        this.gridSize = this.gridWidth * this.gridHeight;
-        this.gridSpacing = 200;
+        this.viewportSize = vec2.fromValues(
+            this.canvas.clientWidth,
+            this.canvas.clientHeight
+        )
 
-        console.log(this.gridWidth, this.gridHeight);
+        this.gridSpacingScale = 1;
+        this.gridSpacingOffset = vec2.fromValues(
+            this.GRID_ROW_DIAMOND_OFFSET,
+            this.GRID_COLUMN_DIAMOND_OFFSET
+        );
+        this.gridSpacing = vec2.fromValues(
+            this.GRID_SPACING * this.gridSpacingOffset[0],
+            this.GRID_SPACING
+        );
+        this.gridItemCount = vec2.create();
+        this.gridSize = vec2.create();
+
+        this.scrollOffset = vec2.fromValues(
+            this.viewportSize[0] / 2, 
+            this.viewportSize[1] / 2
+        );
+
+        this.#initEventHandling();
 
         this.resize();
 
         if (onInit) onInit(this);
     }
 
-    #animate(deltaTime) {
+    #initEventHandling() {
+        this.pointerDownScrollOffset = vec2.clone(this.scrollOffset);
+        this.pointerDownPos = vec2.create();
+        this.pointerPos = vec2.create;
+        this.pointerFollowerPos = vec2.create();
+        this.pointerVelocity = vec2.create();
+        this.pointerVelocityLengthFollower = 0;
 
+        this.canvas.addEventListener('pointerdown', e => {
+            this.pointerDownScrollOffset = vec2.clone(this.scrollOffset);
+            this.pointerDownPos = vec2.set(this.pointerDownPos, e.clientX, e.clientY);
+            this.pointerPos = vec2.clone(this.pointerDownPos);
+            this.pointerFollowerPos = vec2.clone(this.pointerPos);
+            this.pointerDown = true;
+        });
+        this.canvas.addEventListener('pointerup', e => {
+            this.pointerDown = false;
+        });
+        this.canvas.addEventListener('pointerleave', e => {
+            this.pointerDown = false;
+        });
+        this.canvas.addEventListener('pointermove', e => {
+            if (this.pointerDown) {
+                this.pointerPos[0] = e.clientX;
+                this.pointerPos[1] = e.clientY;
+            }
+        });
+    }
+
+    #animate(deltaTime) {
+        const timeScale = deltaTime / 16;
+        const pointerFollowerDamping = .3 * timeScale;
+
+        if (this.pointerDown) {
+            vec2.set(
+                this.pointerVelocity,
+                (this.pointerPos[0] - this.pointerFollowerPos[0]) * pointerFollowerDamping,
+                (this.pointerPos[1] - this.pointerFollowerPos[1]) * pointerFollowerDamping
+            );
+        } else {
+            vec2.scale(
+                this.pointerVelocity,
+                this.pointerVelocity,
+                0.9
+            );
+        }
+        this.pointerFollowerPos[0] += this.pointerVelocity[0];
+        this.pointerFollowerPos[1] += this.pointerVelocity[1];
+
+        const maxVelocity = 1000;
+        const pointerVelocityLength = Math.min(maxVelocity, vec2.length(this.pointerVelocity)) / maxVelocity;
+        const pointerVelocityLengthDamping = 0.4 * timeScale;
+        this.pointerVelocityLengthFollower += (pointerVelocityLength - this.pointerVelocityLengthFollower) * pointerVelocityLengthDamping;
+        this.pointerVelocityLengthFollower = Math.min(0.1, this.pointerVelocityLengthFollower);
+        //this.gridSpacingScale = 1 - this.pointerVelocityLengthFollower;
+            
+        const pointerOffset = vec2.subtract(vec2.create(), this.pointerFollowerPos, this.pointerDownPos);
+        vec2.add(this.scrollOffset, this.pointerDownScrollOffset, pointerOffset);
     }
 
     #render() {
@@ -83,26 +172,61 @@ export class InfiniteGridMenu {
 
         ctx.clearRect(0, 0, this.canvas.clientWidth, this.canvas.clientHeight);
 
-        const maxItemCount = vec2.fromValues(
-            Math.ceil(this.canvas.clientWidth / this.gridSpacing),
-            Math.ceil(this.canvas.clientHeight / this.gridSpacing)
+        const relativeScrollOffset = vec2.fromValues(
+            this.scrollOffset[0] % this.gridSize[0],
+            this.scrollOffset[1] % this.gridSize[1]
         );
 
-        const maxGridCountX = Math.floor(this.canvas.clientWidth / (this.gridSpacing * this.gridWidth));
-        const gridDisplacement = this.gridSize - this.itemCount;
-        let ndx = 0;
-        for(let iY=0; iY<maxItemCount[1]; ++iY) {
-            for(let iX=0; iX<maxItemCount[0]; ++iX) {
-                
-                let itemIndex = iX % this.gridWidth + (iY % this.gridHeight) * this.gridWidth;
-                const gridIndex = Math.floor(iX / this.gridWidth) + Math.floor(iY / this.gridHeight) * maxGridCountX;
-                itemIndex += gridIndex * gridDisplacement;
-                itemIndex %= this.itemCount;
+        const spacing = vec2.fromValues(
+            this.gridSpacing[0] * this.gridSpacingScale,
+            this.gridSpacing[1] * this.gridSpacingScale
+        );
 
-                this.items[itemIndex].render(this.context, [iX * this.gridSpacing, iY * this.gridSpacing]);
+        this.gridSize[0] = spacing[0] * this.gridItemCount[0];
+        this.gridSize[1] = spacing[1] * this.gridItemCount[1];
 
-                ndx++;
+        const positionPaddingOffset = this.GRID_COLUMN_DIAMOND_OFFSET;
+
+        for(let iY=0; iY<this.gridItemCount[1]; ++iY) {
+            for(let iX=0; iX<this.gridItemCount[0]; ++iX) {
+                const position = vec2.fromValues(
+                    (iX - positionPaddingOffset) * spacing[0] + relativeScrollOffset[0],
+                    (iY - positionPaddingOffset) * spacing[1] + relativeScrollOffset[1]
+                );
+                position[1] += (iX % 2) * this.GRID_COLUMN_DIAMOND_OFFSET * this.GRID_SPACING * this.gridSpacingScale;
+                this.#wrapPositionComponent(position, 0);
+                this.#wrapPositionComponent(position, 1);
+                this.items[2].render(this.context, this.GRID_ITEM_RADIUS, position);
             }
         }
     }
+
+    #resizeItemGrid() {
+        // find the max number of items to be rendered and convert the number to an
+        // even number. This will allow alternating column/row offsets
+        this.gridItemCount[0] = Math.ceil(this.viewportSize[0] / this.gridSpacing[0]) + this.GRID_ITEM_COUNT_PADDING * 2;
+        this.gridItemCount[0] = 2 * Math.ceil(this.gridItemCount[0] / 2);
+        this.gridItemCount[1] = Math.ceil(this.viewportSize[1] / this.gridSpacing[1]) + this.GRID_ITEM_COUNT_PADDING * 2;
+        this.gridItemCount[1] = 2 * Math.ceil(this.gridItemCount[1] / 2);
+    }
+
+    #wrapPositionComponent(position, ndx) {
+        const gridItemSize = this.GRID_ITEM_RADIUS * 2;
+        if (position[ndx] > this.viewportSize[ndx] + gridItemSize) {
+            position[ndx] -= this.gridSize[ndx];
+        } else if (position[ndx] < -gridItemSize) {
+            position[ndx] += this.gridSize[ndx];
+        }
+    }
+
+    #getItemFromGridIndex(iX, iY, offset) {
+        let itemIndex = iX % this.gridItemCountX + (iY % this.gridItemCountY) * this.gridItemCountX;
+        const gridIndex = Math.floor(iX / this.gridItemCountX) + Math.floor(iY / this.gridItemCountY) * this.gridItemCountX;
+        itemIndex += gridIndex * this.gridDisplacement + offset;
+        itemIndex %= this.itemCount;
+
+        return this.items[itemIndex];
+    }
+
+    #getPositionFromItemIndex(itemIndex) {}
 }
