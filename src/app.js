@@ -1,4 +1,4 @@
-import { InfiniteGridMenu } from "./infinite-grid-menu";
+import { InfiniteGridMenu2 } from "./infinite-grid-menu-2";
 
 const queryString = window.location.search;
 const urlParams = new URLSearchParams(queryString);
@@ -13,7 +13,7 @@ let resizeTimeoutId;
 
 window.addEventListener('load', () => {
     const canvas = document.getElementById('infinite-grid-menu-canvas');
-    sketch = new InfiniteGridMenu(canvas, (sketch) => sketch.run());
+    sketch = new InfiniteGridMenu2(canvas, (sketch) => sketch.run());
 });
 
 window.addEventListener('resize', () => {

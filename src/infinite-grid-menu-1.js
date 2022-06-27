@@ -18,7 +18,7 @@ class MenuItem {
     }
 }
 
-export class InfiniteGridMenu {
+export class InfiniteGridMenu1 {
 
     #time = 0;
     #deltaTime = 0;
