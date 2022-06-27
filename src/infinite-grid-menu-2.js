@@ -1,8 +1,8 @@
 import { resizeCanvasToDisplaySize } from "./utils/canvas-utils";
 import { vec2 } from "gl-matrix";
-import { SpringNode2 } from "./SpringNode2";
-import { SpringConstraint2 } from "./SpringConstraint2";
-import { SpringSimulation2 } from "./SpringSimulation2";
+import { SpringNode2 } from "./physics/SpringNode2";
+import { SpringConstraint2 } from "./physics/SpringConstraint2";
+import { SpringSimulation2 } from "./physics/SpringSimulation2";
 
 class MenuItem {
 
