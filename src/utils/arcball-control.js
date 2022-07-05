@@ -113,7 +113,7 @@ export class ArcballControl {
 
             // get the amount of rotation
             const d = Math.max(-1, Math.min(1, vec3.dot(a, b)));
-            const angle = Math.acos(d) * 0.5;
+            const angle = Math.acos(d) * 0.2;
 
             // get the new rotation quat
             quat.setAxisAngle(snapQuat, axis, angle);
@@ -123,13 +123,21 @@ export class ArcballControl {
 
         const combinedQuat = quat.multiply(quat.create(), snapQuat, this.pointerQuat);
 
+        quat.multiply(this.targetRotationQuat, combinedQuat, this.rotationQuat);
+
+        this.rotationQuat = this.targetRotationQuat;
+
         // get the new rotation by adding the offset quarternion (r) to the 
         // previous target rotation
-        quat.multiply(this.targetRotationQuat, combinedQuat, this.targetRotationQuat);
+        //quat.multiply(this.targetRotationQuat, this.pointerQuat, this.targetRotationQuat);
 
         // lerp between the target and the current rotation
-        quat.slerp(this.rotationQuat, this.rotationQuat, this.targetRotationQuat, slerpDamping);
+        //quat.slerp(this.rotationQuat, this.rotationQuat, this.targetRotationQuat, slerpDamping);
         //this.rotationQuat = this.targetRotationQuat;
+
+        const r1 = quat.setAxisAngle(quat.create(), vec3.fromValues(0, 1, 0), Math.PI/8);
+        const r2 = quat.setAxisAngle(quat.create(), vec3.fromValues(1, 0, 0), Math.PI/8);
+
 
         // normalize the rotation quat to be applied to the target
         //quat.normalize(this.rotationQuat, this.rotationQuat);
