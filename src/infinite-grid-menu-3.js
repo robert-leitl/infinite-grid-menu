@@ -15,10 +15,15 @@ const testVertShaderSource = `#version 300 es
     in vec3 aModelPosition;
     in vec3 aModelNormal;
 
+    out vec4 vColor;
+
     void main() {
         vec4 worldPosition = uWorldMatrix * vec4(aModelPosition, 1.);
         gl_Position = uProjectionMatrix * uViewMatrix * worldPosition;
-        gl_PointSize = (worldPosition.z + 5.) * 10.;
+        gl_PointSize = (worldPosition.z) * 20.;
+        gl_PointSize *= 1.;
+        vColor = vec4(1.);
+        if (gl_VertexID == 25) vColor = vec4(1., 0., 0., 1.);
     }
 `;
 const testFragShaderSource = `#version 300 es
@@ -31,9 +36,11 @@ const testFragShaderSource = `#version 300 es
 
     out vec4 outColor;
 
+    in vec4 vColor;
+
     void main() {
         vec2 st = gl_PointCoord * 2. - 1.;
-        vec4 color = vec4(1. - smoothstep(0.9, 1., length(st)));
+        vec4 color = vec4(1., 1., 1., (1. - smoothstep(0.9, 1., length(st))) * 0.3) * vColor;
         outColor = color;
     }
 `;
@@ -139,7 +146,7 @@ export class InfiniteGridMenu3 {
 
         // create icosahedron VAO
         this.icosahedronGeo = new IcosahedronGeometry();
-        this.icosahedronGeo.subdivide(2).spherize(3);
+        this.icosahedronGeo.subdivide(1).spherize(3);
 
         this.icoBuffers = this.icosahedronGeo.data;
         this.icoVAO = makeVertexArray(gl, [
@@ -149,7 +156,7 @@ export class InfiniteGridMenu3 {
         this.icoModelMatrix = mat4.create();
     
         // init the pointer rotate control
-        this.control = new ArcballControl(this.canvas);
+        this.control = new ArcballControl(this.canvas, this.icosahedronGeo.vertices);
         
         this.#updateCameraMatrix();
         this.#updateProjectionMatrix(gl);
@@ -172,6 +179,10 @@ export class InfiniteGridMenu3 {
 
         gl.enable(gl.CULL_FACE);
         gl.enable(gl.DEPTH_TEST);
+        gl.cullFace(gl.FRONT);
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        gl.depthMask(false);    // disable depth writing_ALPHA);
 
         gl.clearColor(0, 0, 0, 0);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
