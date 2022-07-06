@@ -1,4 +1,4 @@
-import { mat4, vec2, vec3 } from "gl-matrix";
+import { mat4, quat, vec2, vec3 } from "gl-matrix";
 import { IcosahedronGeometry } from "./geometry/icosahedron-geometry";
 import { ArcballControl } from './utils/arcball-control';
 import { createAndSetupTexture, createFramebuffer, createProgram, makeBuffer, makeVertexArray, resizeCanvasToDisplaySize, setFramebuffer } from './utils/webgl-utils';
@@ -145,10 +145,10 @@ export class InfiniteGridMenu3 {
         /////////////////////////////////// GEOMETRY / MESH SETUP
 
         // create icosahedron VAO
-        this.icosahedronGeo = new IcosahedronGeometry();
-        this.icosahedronGeo.subdivide(1).spherize(3);
+        this.icoGeo = new IcosahedronGeometry();
+        this.icoGeo.subdivide(1).spherize(3);
 
-        this.icoBuffers = this.icosahedronGeo.data;
+        this.icoBuffers = this.icoGeo.data;
         this.icoVAO = makeVertexArray(gl, [
             [makeBuffer(gl, this.icoBuffers.vertices, gl.STATIC_DRAW), 0, 3],
             [makeBuffer(gl, this.icoBuffers.normals, gl.STATIC_DRAW), 1, 3]
@@ -156,7 +156,7 @@ export class InfiniteGridMenu3 {
         this.icoModelMatrix = mat4.create();
     
         // init the pointer rotate control
-        this.control = new ArcballControl(this.canvas, this.icosahedronGeo.vertices);
+        this.control = new ArcballControl(this.canvas, () => this.#onControlUpdate());
         
         this.#updateCameraMatrix();
         this.#updateProjectionMatrix(gl);
@@ -168,7 +168,7 @@ export class InfiniteGridMenu3 {
 
     #animate(deltaTime) {
         this.control.update(deltaTime);
-        mat4.fromQuat(this.icoModelMatrix, this.control.rotationQuat);
+        mat4.fromQuat(this.icoModelMatrix, this.control.orientation);
     }
 
     #render() {
@@ -212,5 +212,43 @@ export class InfiniteGridMenu3 {
         this.camera.aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
         mat4.perspective(this.camera.matrices.projection, this.camera.fov, this.camera.aspect, this.camera.near, this.camera.far);
         mat4.invert(this.camera.matrices.inversProjection, this.camera.matrices.projection);
+    }
+
+    #onControlUpdate() {
+        let damping = 10;
+        let cameraTargetZ = 5;
+
+        if (!this.control.isPointerDown) {
+            this.control.snapTargetDirection = this.#findNearestSnapDirection();
+        } else {
+            cameraTargetZ = 7;
+            damping = 6;
+        }
+
+        this.camera.position[2] += (cameraTargetZ - this.camera.position[2]) / damping;
+        this.#updateCameraMatrix();
+    }
+
+    #findNearestSnapDirection() {
+        // map the XY-Plane normal to the model space
+        const n = this.control.snapDirection;
+        const inversOrientation = quat.conjugate(quat.create(), this.control.orientation);
+        // transform the normal to model space
+        const nt = vec3.transformQuat(vec3.create(), n, inversOrientation);
+        
+        // find the nearest vertex 
+        const vertices = this.icoGeo.vertices;
+        let maxD = -1;
+        let nearestVertexPos;
+        for(let i=0; i<vertices.length; ++i) {
+            const d = vec3.dot(nt, vertices[i].position);
+            if (d > maxD) {
+                maxD = d;
+                nearestVertexPos = vertices[i].position;
+            }
+        }
+
+        const snapDirection = vec3.transformQuat(vec3.create(), nearestVertexPos, this.control.orientation);
+        return vec3.normalize(snapDirection, snapDirection);
     }
 }

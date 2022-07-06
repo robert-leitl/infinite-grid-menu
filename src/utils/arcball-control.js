@@ -2,152 +2,116 @@ import { quat, vec3, vec2, mat3 } from 'gl-matrix';
 
 export class ArcballControl {
 
-    // the current rotation quaternion
-    rotationQuat = quat.create();
-    targetRotationQuat = quat.create();
-    pointerQuat = quat.create();
+    // flag which indicates if the user is currently dragging
+    isPointerDown = false;
 
+    // this quarternion describes the current orientation of the object
+    orientation = quat.create();
 
-    snapVertexPos;
+    // the current pointer rotation as a quarternion
+    pointerRotation = quat.create();
 
-    constructor(canvas, vertices, updateCallback) {
+    // the direction to move the snap target to (in world space)
+    snapDirection = vec3.fromValues(0, 0, 1);
+
+    // the direction of the target to move to the snap direction (in world space)
+    snapTargetDirection;
+
+    constructor(canvas, updateCallback) {
         this.canvas = canvas;
         this.updateCallback = updateCallback ? updateCallback : () => null;
-        this.vertices = vertices;
 
-        quat.normalize(this.rotationQuat, this.rotationQuat);
-        quat.normalize(this.targetRotationQuat, this.targetRotationQuat);
-
-        this.pointerDown = false;
-        this.pointerDownPos = vec2.create();
+        this.isPointerDown = false;
         this.pointerPos = vec2.create();
-        this.followPos = vec3.create();
-        this.prevFollowPos = vec3.create();
+        this.previousPointerPos = vec2.create();
         this.autoRotationSpeed = 0;
 
-        this.pointerAngle = 0;
-        this.pointerAxis = vec3.create();
-
-        canvas.style.touchAction = 'none';
-
         canvas.addEventListener('pointerdown', e => {
-            this.pointerDownPos = vec2.fromValues(e.clientX, e.clientY);
-            this.followPos = vec3.fromValues(e.clientX, e.clientY, 0);
             this.pointerPos = vec2.fromValues(e.clientX, e.clientY);
-            this.prevFollowPos = vec3.fromValues(e.clientX, e.clientY, 0);
-            this.pointerDown = true;
-            this.autoRotationSpeed = 0;
-            this.snapVertexPos = null;
+            this.previousPointerPos = vec2.clone(this.pointerPos);
+            this.isPointerDown = true;
         });
         canvas.addEventListener('pointerup', e => {
-            if (!this.pointerDown) return;
-
-            this.pointerDown = false;
-            this.snapToNearestPoint();
+            this.isPointerDown = false;
         });
         canvas.addEventListener('pointerleave', e => {
-            if (!this.pointerDown) return;
-
-            this.pointerDown = false;
-            this.snapToNearestPoint();
+            this.isPointerDown = false;
         });
         canvas.addEventListener('pointermove', e => {
-            if (this.pointerDown) {
-                this.pointerPos[0] = e.clientX;
-                this.pointerPos[1] = e.clientY;
+            if (this.isPointerDown) {
+                vec2.set(this.pointerPos, e.clientX, e.clientY);
             }
         });
+
+        // disable native touch handling
+        canvas.style.touchAction = 'none';
     }
 
     update(deltaTime) {
         const timeScale = 16 / (deltaTime + 0.01);
 
-        // the mouse follower
-        const pointerDamping = 1 * timeScale;
-        this.followPos[0] += (this.pointerPos[0] - this.followPos[0]) / pointerDamping;
-        this.followPos[1] += (this.pointerPos[1] - this.followPos[1]) / pointerDamping;
-
-        let slerpDamping = 0.8;
         let angleFactor = timeScale;
-        let snapQuat = quat.create();
-        let a;  // rotate from point a
-        let b;  // to point b
+        let snapRotation = quat.create();
 
-        if (this.pointerDown) {
+        if (this.isPointerDown) {
+            // the intensity of the pointer to reach the new position (lower value --> slower movement)
+            const INTENSITY = 0.3;
+            // the factor to amplify the rotation angle (higher value --> faster rotation)
+            const ANGLE_AMPLIFICATION = 1.5;
+
+            // get only a part of the pointer movement to smooth out the movement
+            const midPointerPos = vec2.sub(vec2.create(), this.pointerPos, this.previousPointerPos);
+            vec2.scale(midPointerPos, midPointerPos, INTENSITY);
+            vec2.add(midPointerPos, this.previousPointerPos, midPointerPos);
+
             // get points on the arcball and corresponding normals
-            const p = this.#project(this.followPos);
-            const q = this.#project(this.prevFollowPos);
-            a = vec3.normalize(vec3.create(), p);
-            b = vec3.normalize(vec3.create(), q);
+            const p = this.#project(midPointerPos);
+            const q = this.#project(this.previousPointerPos);
+            const a = vec3.normalize(vec3.create(), p);
+            const b = vec3.normalize(vec3.create(), q);
+
+            // copy for the next iteration
+            vec2.copy(this.previousPointerPos, midPointerPos);
 
             // scroll faster
-            angleFactor *= 1.5;
-
-            // get the normalized axis of rotation
-            const axis = vec3.cross(vec3.create(), a, b);
-            vec3.normalize(axis, axis);
-
-            // get the amount of rotation
-            const d = Math.max(-1, Math.min(1, vec3.dot(a, b)));
-            const angle = Math.acos(d) * angleFactor;
-
-            // store the angle velocity and axis
-            this.pointerAngle = angle;
-            this.pointerAxis = axis;
+            angleFactor *= ANGLE_AMPLIFICATION;
 
             // get the new rotation quat
-            quat.setAxisAngle(this.pointerQuat, this.pointerAxis, this.pointerAngle);
+            this.quatFromVectors(a, b, this.pointerRotation, angleFactor);
         } else {
-            quat.slerp(this.pointerQuat, this.pointerQuat, quat.create(), 0.1);
+            // the intensity of the continuation for the pointer rotation (lower --> shorter continuation)
+            const INTENSITY = 0.1
+
+            // decrement the pointer rotation smoothly to the identity quaternion
+            quat.slerp(this.pointerRotation, this.pointerRotation, quat.create(), INTENSITY);
+
+            if (this.snapTargetDirection) {
+                // defines the strength of snapping rotation (lower --> less strong)
+                const INTENSITY = 0.15;
+
+                const a = this.snapTargetDirection
+                const b = this.snapDirection;
+    
+                // smooth out the snapping by damping the effect of farther away points
+                const sqrDist = vec3.squaredDistance(a, b);
+                const distanceFactor =  Math.max(0.1, 1 - sqrDist * 10);
+    
+                // slow down snapping
+                angleFactor *= INTENSITY * distanceFactor;
+    
+                this.quatFromVectors(a, b, snapRotation, angleFactor);
+            }
         }
-        
-        if (this.snapVertexPos) {
-            // transform the nearest vertex position to world space
-            a = vec3.transformQuat(vec3.create(), this.snapVertexPos, this.targetRotationQuat);
-            vec3.normalize(a, a);
-            b = vec3.fromValues(0, 0, 1);
 
-            // get the normalized axis of rotation
-            const axis = vec3.cross(vec3.create(), a, b);
-            vec3.normalize(axis, axis);
+        // combine the pointer rotation with the snap rotation and add it to the orientation
+        const combinedQuat = quat.multiply(quat.create(), snapRotation, this.pointerRotation);
+        this.orientation = quat.multiply(quat.normalize(quat.create(), quat.create()), combinedQuat, this.orientation);
+        quat.normalize(this.orientation, this.orientation);
 
-            // get the amount of rotation
-            const d = Math.max(-1, Math.min(1, vec3.dot(a, b)));
-            const angle = Math.acos(d) * 0.2;
-
-            // get the new rotation quat
-            quat.setAxisAngle(snapQuat, axis, angle);
-
-            slerpDamping = 0.3;
-        }
-
-        const combinedQuat = quat.multiply(quat.create(), snapQuat, this.pointerQuat);
-
-        quat.multiply(this.targetRotationQuat, combinedQuat, this.rotationQuat);
-
-        this.rotationQuat = this.targetRotationQuat;
-
-        // get the new rotation by adding the offset quarternion (r) to the 
-        // previous target rotation
-        //quat.multiply(this.targetRotationQuat, this.pointerQuat, this.targetRotationQuat);
-
-        // lerp between the target and the current rotation
-        //quat.slerp(this.rotationQuat, this.rotationQuat, this.targetRotationQuat, slerpDamping);
-        //this.rotationQuat = this.targetRotationQuat;
-
-        const r1 = quat.setAxisAngle(quat.create(), vec3.fromValues(0, 1, 0), Math.PI/8);
-        const r2 = quat.setAxisAngle(quat.create(), vec3.fromValues(1, 0, 0), Math.PI/8);
-
-
-        // normalize the rotation quat to be applied to the target
-        //quat.normalize(this.rotationQuat, this.rotationQuat);
-
-        // update for the next iteration
-        this.prevFollowPos = vec3.clone(this.followPos);
         this.updateCallback();
     }
 
-    quatFromVectors(a, b, angleFactor = 1) {
+    quatFromVectors(a, b, out, angleFactor = 1) {
         // get the normalized axis of rotation
         const axis = vec3.cross(vec3.create(), a, b);
         vec3.normalize(axis, axis);
@@ -157,51 +121,7 @@ export class ArcballControl {
         const angle = Math.acos(d) * angleFactor;
 
         // return the new rotation quat
-        return quat.setAxisAngle(quat.create(), axis, angle);
-    }
-
-    snapToNearestPoint() {
-        // map the XY-Plane normal to the model space
-        const n = vec3.fromValues(0, 0, 1);
-        const iq = quat.conjugate(quat.create(), this.rotationQuat);
-        const nt = vec3.transformQuat(vec3.create(), n, iq);    // normal in model space
-        
-        // find the nearest vertex 
-        let maxD = -1;
-        let nearestVertexPos;
-        for(let i=0; i<this.vertices.length; ++i) {
-            const d = vec3.dot(nt, this.vertices[i].position);
-            if (d > maxD) {
-                maxD = d;
-                nearestVertexPos = this.vertices[i].position;
-            }
-        }
-
-        this.snapVertexPos = nearestVertexPos;
-
-        
-        
-        // get the new target rotation from the nearest vertex pos and the normal
-        /*const np = vec3.normalize(vec3.create(), t);
-        const nq = vec3.normalize(vec3.create(), n);
-
-        // get the normalized axis of rotation
-        const axis = vec3.cross(vec3.create(), n, t);
-        vec3.normalize(axis, axis);
-
-        // get the amount of rotation
-        const d = Math.max(-1, Math.min(1, vec3.dot(np, nq)));
-        const angle = -Math.acos(d);
-
-        // get the new rotation quat
-        const r = quat.setAxisAngle(quat.create(), axis, angle);
-
-        // get the new rotation by adding the offset quarternion (r) to the 
-        // previous target rotation
-        quat.multiply(this.targetRotationQuat, this.rotationQuat, r);
-        this.rotationQuat = this.targetRotationQuat;*/
-
-        //quat.identity(this.targetRotationQuat);
+        return { q: quat.setAxisAngle(out, axis, angle), axis, angle };
     }
 
     quatToString(q) {
