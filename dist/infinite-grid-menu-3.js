@@ -1,7 +1,7 @@
-import { mat4, quat, vec2, vec3 } from "gl-matrix";
-import { IcosahedronGeometry } from "./geometry/icosahedron-geometry";
-import { ArcballControl } from './utils/arcball-control';
-import { createAndSetupTexture, createFramebuffer, createProgram, makeBuffer, makeVertexArray, resizeCanvasToDisplaySize, setFramebuffer } from './utils/webgl-utils';
+import { mat4, quat, vec2, vec3 } from "./web_modules/pkg/gl-matrix.js";
+import { IcosahedronGeometry } from "./geometry/icosahedron-geometry.js";
+import { ArcballControl } from './utils/arcball-control.js';
+import { createAndSetupTexture, createFramebuffer, createProgram, makeBuffer, makeVertexArray, resizeCanvasToDisplaySize, setFramebuffer } from './utils/webgl-utils.js';
 
 
 const testVertShaderSource = `#version 300 es

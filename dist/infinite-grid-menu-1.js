@@ -18,7 +18,7 @@ class MenuItem {
     }
 }
 
-export class InfiniteGridMenu {
+export class InfiniteGridMenu1 {
 
     #time = 0;
     #deltaTime = 0;
@@ -26,7 +26,7 @@ export class InfiniteGridMenu {
 
     scrollOffset = vec2.create();
 
-    GRID_SPACING = 100;
+    GRID_SPACING = 300;
     GRID_ITEM_COUNT_PADDING = 2;
     GRID_ITEM_RADIUS = 50;
     GRID_COLUMN_DIAMOND_OFFSET = 0.5;

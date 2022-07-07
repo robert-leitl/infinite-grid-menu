@@ -1,4 +1,4 @@
-import { quat, vec3, vec2, mat3 } from 'gl-matrix';
+import { quat, vec3, vec2, mat3 } from '../web_modules/pkg/gl-matrix.js';
 
 export class ArcballControl {
 
