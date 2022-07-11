@@ -181,9 +181,10 @@ export class InfiniteGridMenu {
 
         // update the instance matrices from the current orientation
         let positions = this.instancePositions.map(p => vec3.transformQuat(vec3.create(), p, this.control.orientation));
-        const scale = 0.15 + (Math.abs(this.camera.position[2]) / this.cameraWideAngleDistance) * 0.0;
+        const scale = 0.25 + (Math.abs(this.camera.position[2]) / this.cameraWideAngleDistance) * 0.0;
+        const SCALE_INTENSITY = 1;
         positions.forEach((p, ndx) => {
-            const s = (Math.abs(p[2]) * 0.6 + 0.4) * scale;
+            const s = ((Math.abs(p[2]) / this.SPHERE_RADIUS) * SCALE_INTENSITY + (1 - SCALE_INTENSITY)) * scale;
             const matrix = mat4.create();
             mat4.multiply(matrix, matrix, mat4.fromTranslation(mat4.create(), vec3.negate(vec3.create(), p)));
             mat4.multiply(matrix, matrix, mat4.targetTo(mat4.create(), [0, 0, 0], p, [0, 1, 0]));

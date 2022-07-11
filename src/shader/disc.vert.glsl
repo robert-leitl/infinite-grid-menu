@@ -29,7 +29,7 @@ void main() {
     if (gl_VertexID > 0) {
         // stretch the disc according to the axis and velocity of the rotation
         vec3 rotationAxis = uRotationAxisVelocity.xyz;
-        float rotationVelocity = min(.1, uRotationAxisVelocity.w * 10.);
+        float rotationVelocity = min(.125, uRotationAxisVelocity.w * 15.);
         // the stretch direction is orthogonal to the rotation axis and the position
         vec3 stretchDir = normalize(cross(centerPos, rotationAxis));
         // the position of this vertex relative to the center position
