@@ -273,11 +273,12 @@ export class InfiniteGridMenu {
         // find the nearest vertex 
         const vertices = this.instancePositions;
         let maxD = -1;
-        let nearestVertexPos;
+        let nearestVertexPos, nearestVertexIndex;
         for(let i=0; i<vertices.length; ++i) {
             const d = vec3.dot(nt, vertices[i]);
             if (d > maxD) {
                 maxD = d;
+                nearestVertexIndex = i;
                 nearestVertexPos = vertices[i];
             }
         }
