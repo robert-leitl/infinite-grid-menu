@@ -23,7 +23,7 @@ export class ArcballControl {
     // the direction of the target to move to the snap direction (in world space)
     snapTargetDirection;
 
-    EPSILON = 0.00000001;
+    EPSILON = 0.0001;
 
     constructor(canvas, updateCallback) {
         this.canvas = canvas;
@@ -88,6 +88,8 @@ export class ArcballControl {
     
                 // get the new rotation quat
                 this.quatFromVectors(a, b, this.pointerRotation, angleFactor);
+            } else {
+                quat.identity(this.pointerRotation);
             }
         } else {
             // the intensity of the continuation for the pointer rotation (lower --> shorter continuation)

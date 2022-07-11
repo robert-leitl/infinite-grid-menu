@@ -36,7 +36,7 @@ void main() {
         vec3 relativeVertexPos = normalize(worldPosition.xyz - centerPos);
         // vertices more in line with the stretch direction get a larger offset
         float strength = dot(stretchDir, relativeVertexPos);
-        strength = rotationVelocity * sign(strength) * smoothstep(0., .75, abs(strength));
+        strength = rotationVelocity * sign(strength) * smoothstep(0., .7, abs(strength));
         // apply the stretch distortion
         worldPosition.xyz += stretchDir * strength;
     }

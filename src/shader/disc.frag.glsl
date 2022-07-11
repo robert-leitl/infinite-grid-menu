@@ -13,7 +13,7 @@ in float vAlpha;
 flat in int vInstanceId;
 
 void main() {
-    outColor = vec4(0., 1., float(vInstanceId) / 42., 1.);
+    outColor = vec4(0.9, 0.7, float(vInstanceId) / 42., 1.);
 
     //outColor *= vAlpha;
 }
