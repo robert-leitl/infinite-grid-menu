@@ -63,7 +63,7 @@ export class ArcballControl {
             // the intensity of the pointer to reach the new position (lower value --> slower movement)
             const INTENSITY = 0.3;
             // the factor to amplify the rotation angle (higher value --> faster rotation)
-            const ANGLE_AMPLIFICATION = 1.5;
+            const ANGLE_AMPLIFICATION = 5;
 
             // get only a part of the pointer movement to smooth out the movement
             const midPointerPos = vec2.sub(vec2.create(), this.pointerPos, this.previousPointerPos);
@@ -113,9 +113,12 @@ export class ArcballControl {
         const combinedQuat = quat.multiply(quat.create(), snapRotation, this.pointerRotation);
         this.orientation = quat.multiply(quat.normalize(quat.create(), quat.create()), combinedQuat, this.orientation);
         quat.normalize(this.orientation, this.orientation);
+        if (vec3.sqrLen(this.rotationAxis) < 0.00000001)
+            vec3.set(this.rotationAxis, 0, 1, 0);
 
         // calculate the rotation axis and velocity from the combined rotation
-        this.rotationVelocity = quat.getAxisAngle(this.rotationAxis, combinedQuat);
+        this.rotationVelocity = quat.getAxisAngle(this.rotationAxis, combinedQuat) / (2 * Math.PI);
+        vec3.normalize(this.rotationAxis, this.rotationAxis);
 
         this.updateCallback();
     }
@@ -147,7 +150,7 @@ export class ArcballControl {
      * @see https://www.xarg.org/2021/07/trackball-rotation-using-quaternions/
      */
     #project(pos) {
-        const r = 1; // arcball radius
+        const r = 2; // arcball radius
         const w = this.canvas.clientWidth;
         const h = this.canvas.clientHeight;
         const s = Math.max(w, h) - 1;

@@ -10,9 +10,10 @@ out vec4 outColor;
 
 in vec2 vUvs;
 in float vAlpha;
+flat in int vInstanceId;
 
 void main() {
-    outColor = vec4(vUvs, 1., 1.);
+    outColor = vec4(vUvs, float(vInstanceId) / 42., 1.);
 
     outColor *= vAlpha;
 }

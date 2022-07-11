@@ -18,7 +18,6 @@ window.addEventListener('load', () => {
 });
 
 const resize = () => {
-    console.log(window.innerHeight);
     // explicitly set the width and height to compensate for missing dvh and dvw support
     document.body.style.width = `${window.innerWidth}px`;
     document.body.style.height = `${window.innerHeight}px`;

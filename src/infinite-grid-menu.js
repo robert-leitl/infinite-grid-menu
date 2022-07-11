@@ -25,11 +25,11 @@ export class InfiniteGridMenu {
 
     camera = {
         matrix: mat4.create(),
-        near: 0.5,
-        far: 10,
+        near: 0.1,
+        far: 40,
         fov: Math.PI / 4,
         aspect: 1,
-        position: vec3.fromValues(0, 0, 7),
+        position: vec3.fromValues(0, 0, 3),
         up: vec3.fromValues(0, 1, 0),
         matrices: {
             view: mat4.create(),
@@ -110,7 +110,7 @@ export class InfiniteGridMenu {
         /////////////////////////////////// GEOMETRY / MESH SETUP
 
         // create disc VAO
-        this.discGeo = new DiscGeometry(36, 1);
+        this.discGeo = new DiscGeometry(56, 1);
         this.discBuffers = this.discGeo.data;
         this.discVAO = makeVertexArray(gl, [
             [makeBuffer(gl, this.discBuffers.vertices, gl.STATIC_DRAW), this.discLocations.aModelPosition, 3],
@@ -181,12 +181,14 @@ export class InfiniteGridMenu {
 
         // update the instance matrices from the current orientation
         let positions = this.instancePositions.map(p => vec3.transformQuat(vec3.create(), p, this.control.orientation));
+        const scale = 0.15 + (Math.abs(this.camera.position[2]) / this.cameraWideAngleDistance) * 0.0;
         positions.forEach((p, ndx) => {
-            const scale = (Math.abs(p[2]) * 0.6 + 0.4) * 0.15;
+            const s = (Math.abs(p[2]) * 0.6 + 0.4) * scale;
             const matrix = mat4.create();
-            mat4.translate(matrix, matrix, vec3.negate(vec3.create(), p));
-            mat4.scale(matrix, matrix, [scale, scale, scale]);
+            mat4.multiply(matrix, matrix, mat4.fromTranslation(mat4.create(), vec3.negate(vec3.create(), p)));
             mat4.multiply(matrix, matrix, mat4.targetTo(mat4.create(), [0, 0, 0], p, [0, 1, 0]));
+            mat4.multiply(matrix, matrix, mat4.fromScaling(mat4.create(), [s, s, s]));
+            mat4.multiply(matrix, matrix, mat4.fromTranslation(mat4.create(), [0, 0, -this.SPHERE_RADIUS]));
 
             mat4.copy(this.discInstances.matrices[ndx], matrix);
         });
@@ -235,28 +237,40 @@ export class InfiniteGridMenu {
 
     #updateProjectionMatrix(gl) {
         this.camera.aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
+
+        const height = this.SPHERE_RADIUS * .35;
+        const distance = this.camera.position[2];
+        if (this.camera.aspect > 1) {
+            this.camera.fov = 2 * Math.atan( height / distance );
+        } else {
+            this.camera.fov = 2 * Math.atan( (height / this.camera.aspect) / distance );
+        }
+
         mat4.perspective(this.camera.matrices.projection, this.camera.fov, this.camera.aspect, this.camera.near, this.camera.far);
         mat4.invert(this.camera.matrices.inversProjection, this.camera.matrices.projection);
 
         const size = this.SPHERE_RADIUS * 2;
         if (this.camera.aspect > 1) {
             this.cameraWideAngleDistance = (size / 2) / Math.tan(this.camera.fov / 2);
+            this.cameraFocusAngleDistance = 1.5 / Math.tan(this.camera.fov / 2);
         } else {
             this.cameraWideAngleDistance = (size / 2) / Math.tan ((this.camera.fov * this.camera.aspect) / 2);
+            this.cameraFocusAngleDistance = 1.5 / Math.tan ((this.camera.fov * this.camera.aspect) / 2);
         }
-        this.cameraWideAngleDistance -= 0.5;
+        //console.log(this.cameraFocusAngleDistance, this.cameraWideAngleDistance);
+        //this.cameraWideAngleDistance += 0.8;
     }
 
     #onControlUpdate() {
-        let damping = 6;
-        let cameraTargetZ = this.cameraWideAngleDistance * 0.6;
+        let damping = 5;
+        let cameraTargetZ = 3;
 
         if (!this.control.isPointerDown) {
-            cameraTargetZ *= 0.9;
+            // focus on the selected item
             this.control.snapTargetDirection = this.#findNearestSnapDirection();
         } else {
-            cameraTargetZ = this.control.rotationVelocity * 12 + this.cameraWideAngleDistance * 0.7;
-            damping = 5;
+            cameraTargetZ += (this.control.rotationVelocity * 80) + 2.25;
+            damping = 7;
         }
 
         this.camera.position[2] += (cameraTargetZ - this.camera.position[2]) / damping;
