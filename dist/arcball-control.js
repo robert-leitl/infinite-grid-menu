@@ -23,6 +23,8 @@ export class ArcballControl {
     // the direction of the target to move to the snap direction (in world space)
     snapTargetDirection;
 
+    EPSILON = 0.00000001;
+
     constructor(canvas, updateCallback) {
         this.canvas = canvas;
         this.updateCallback = updateCallback ? updateCallback : () => null;
@@ -68,22 +70,25 @@ export class ArcballControl {
             // get only a part of the pointer movement to smooth out the movement
             const midPointerPos = vec2.sub(vec2.create(), this.pointerPos, this.previousPointerPos);
             vec2.scale(midPointerPos, midPointerPos, INTENSITY);
-            vec2.add(midPointerPos, this.previousPointerPos, midPointerPos);
 
-            // get points on the arcball and corresponding normals
-            const p = this.#project(midPointerPos);
-            const q = this.#project(this.previousPointerPos);
-            const a = vec3.normalize(vec3.create(), p);
-            const b = vec3.normalize(vec3.create(), q);
+            if (vec2.sqrLen(midPointerPos) > this.EPSILON) {
+                vec2.add(midPointerPos, this.previousPointerPos, midPointerPos);
 
-            // copy for the next iteration
-            vec2.copy(this.previousPointerPos, midPointerPos);
-
-            // scroll faster
-            angleFactor *= ANGLE_AMPLIFICATION;
-
-            // get the new rotation quat
-            this.quatFromVectors(a, b, this.pointerRotation, angleFactor);
+                // get points on the arcball and corresponding normals
+                const p = this.#project(midPointerPos);
+                const q = this.#project(this.previousPointerPos);
+                const a = vec3.normalize(vec3.create(), p);
+                const b = vec3.normalize(vec3.create(), q);
+    
+                // copy for the next iteration
+                vec2.copy(this.previousPointerPos, midPointerPos);
+    
+                // scroll faster
+                angleFactor *= ANGLE_AMPLIFICATION;
+    
+                // get the new rotation quat
+                this.quatFromVectors(a, b, this.pointerRotation, angleFactor);
+            }
         } else {
             // the intensity of the continuation for the pointer rotation (lower --> shorter continuation)
             const INTENSITY = 0.1
@@ -113,7 +118,7 @@ export class ArcballControl {
         const combinedQuat = quat.multiply(quat.create(), snapRotation, this.pointerRotation);
         this.orientation = quat.multiply(quat.normalize(quat.create(), quat.create()), combinedQuat, this.orientation);
         quat.normalize(this.orientation, this.orientation);
-        if (vec3.sqrLen(this.rotationAxis) < 0.00000001)
+        if (vec3.sqrLen(this.rotationAxis) < this.EPSILON)
             vec3.set(this.rotationAxis, 0, 1, 0);
 
         // calculate the rotation axis and velocity from the combined rotation
