@@ -20,8 +20,8 @@ const testVertShaderSource = `#version 300 es
     void main() {
         vec4 worldPosition = uWorldMatrix * vec4(aModelPosition, 1.);
         gl_Position = uProjectionMatrix * uViewMatrix * worldPosition;
-        gl_PointSize = (worldPosition.z) * 20.;
-        gl_PointSize *= 2.;
+        gl_PointSize = pow(max(0., worldPosition.z), 3.) * 20.;
+        gl_PointSize *= 3.;
         vColor = vec4(1.);
     }
 `;
@@ -220,7 +220,7 @@ export class InfiniteGridMenu3 {
         } else {
             this.cameraWideAngleDistance = (size / 2) / Math.tan ((this.camera.fov * this.camera.aspect) / 2);
         }
-        this.cameraWideAngleDistance += 0.5;
+        //this.cameraWideAngleDistance -= 0.5;
     }
 
     #onControlUpdate() {
@@ -228,9 +228,10 @@ export class InfiniteGridMenu3 {
         let cameraTargetZ = this.cameraWideAngleDistance * 0.6;
 
         if (!this.control.isPointerDown) {
+            cameraTargetZ *= 0.9;
             this.control.snapTargetDirection = this.#findNearestSnapDirection();
         } else {
-            cameraTargetZ = this.cameraWideAngleDistance;
+            cameraTargetZ = this.control.pointerRotationVelocity * 9 + this.cameraWideAngleDistance * 0.7;
             damping = 4;
         }
 
