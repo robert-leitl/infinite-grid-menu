@@ -1,67 +1,13 @@
-import { mat3, mat4, quat, vec2, vec3 } from "gl-matrix";
-import { DiscGeometry } from "./geometry/disc-geometry";
-import { IcosahedronGeometry } from "./geometry/icosahedron-geometry";
-import { ArcballControl } from './utils/arcball-control';
-import { createAndSetupTexture, createFramebuffer, createProgram, makeBuffer, makeVertexArray, resizeCanvasToDisplaySize, setFramebuffer } from './utils/webgl-utils';
+import { mat3, mat4, quat, vec2, vec3 } from "./web_modules/pkg/gl-matrix.js";
+import { DiscGeometry } from "./geometry/disc-geometry.js";
+import { IcosahedronGeometry } from "./geometry/icosahedron-geometry.js";
+import { ArcballControl } from './arcball-control.js';
+import { createAndSetupTexture, createFramebuffer, createProgram, makeBuffer, makeVertexArray, resizeCanvasToDisplaySize, setFramebuffer } from './utils/webgl-utils.js';
 
+import discVertShaderSource from './shader/disc.vert.js';
+import discFragShaderSource from './shader/disc.frag.js';
 
-const testVertShaderSource = `#version 300 es
-
-    uniform mat4 uWorldMatrix;
-    uniform mat4 uViewMatrix;
-    uniform mat4 uProjectionMatrix;
-    uniform vec3 uCameraPosition;
-    uniform vec4 uRotationAxisVelocity;
-
-    in vec3 aModelPosition;
-    in vec3 aModelNormal;
-    in vec2 aModelUvs;
-    in mat4 aInstanceMatrix;
-
-    out vec2 vUvs;
-    out float vAlpha;
-
-    void main() {
-        vec4 worldPosition = aInstanceMatrix * uWorldMatrix * vec4(aModelPosition, 1.);
-
-
-        vec4 discOriginPos = aInstanceMatrix * uWorldMatrix * vec4(0., 0., 0., 1.);
-        float radius = length(discOriginPos.xyz);
-        vec3 velocityDirection = cross(discOriginPos.xyz, uRotationAxisVelocity.xyz);
-        vec3 relativeVertexPos = worldPosition.xyz - discOriginPos.xyz;
-        float offsetStrength = dot(velocityDirection, relativeVertexPos);
-        offsetStrength = uRotationAxisVelocity.w * offsetStrength * 2.;
-        worldPosition.xyz += velocityDirection * offsetStrength;
-        worldPosition.xyz = radius * normalize(worldPosition.xyz);
-
-
-        gl_Position = uProjectionMatrix * uViewMatrix * worldPosition;
-
-        vAlpha = pow(normalize(worldPosition.xyz).z, 1.);
-        vUvs = aModelUvs;
-    }
-`;
-const testFragShaderSource = `#version 300 es
-
-    precision highp float;
-
-    uniform float uFrames;
-    uniform float uScaleFactor;
-    uniform vec3 uCameraPosition;
-
-    out vec4 outColor;
-
-    in vec2 vUvs;
-    in float vAlpha;
-
-    void main() {
-        outColor = vec4(vUvs, 1., 1.);
-
-        outColor *= vAlpha;
-    }
-`;
-
-export class InfiniteGridMenu3 {
+export class InfiniteGridMenu {
 
     TARGET_FRAME_DURATION = 1000 / 60;  // 60 fps
 
@@ -146,19 +92,19 @@ export class InfiniteGridMenu3 {
         this.drawBufferSize = vec2.clone(this.viewportSize);
 
         // setup programs
-        this.testProgram = createProgram(gl, [testVertShaderSource, testFragShaderSource], null, { aModelPosition: 0, aModelNormal: 1, aModelUvs: 2, aInstanceMatrix: 3 });
+        this.discProgram = createProgram(gl, [discVertShaderSource, discFragShaderSource], null, { aModelPosition: 0, aModelNormal: 1, aModelUvs: 2, aInstanceMatrix: 3 });
 
         // find the locations
-        this.testLocations = {
-            aModelPosition: gl.getAttribLocation(this.testProgram, 'aModelPosition'),
-            aModelUvs: gl.getAttribLocation(this.testProgram, 'aModelUvs'),
-            aInstanceMatrix: gl.getAttribLocation(this.testProgram, 'aInstanceMatrix'),
-            uWorldMatrix: gl.getUniformLocation(this.testProgram, 'uWorldMatrix'),
-            uViewMatrix: gl.getUniformLocation(this.testProgram, 'uViewMatrix'),
-            uProjectionMatrix: gl.getUniformLocation(this.testProgram, 'uProjectionMatrix'),
-            uCameraPosition: gl.getUniformLocation(this.testProgram, 'uCameraPosition'),
-            uScaleFactor: gl.getUniformLocation(this.testProgram, 'uScaleFactor'),
-            uRotationAxisVelocity: gl.getUniformLocation(this.testProgram, 'uRotationAxisVelocity')
+        this.discLocations = {
+            aModelPosition: gl.getAttribLocation(this.discProgram, 'aModelPosition'),
+            aModelUvs: gl.getAttribLocation(this.discProgram, 'aModelUvs'),
+            aInstanceMatrix: gl.getAttribLocation(this.discProgram, 'aInstanceMatrix'),
+            uWorldMatrix: gl.getUniformLocation(this.discProgram, 'uWorldMatrix'),
+            uViewMatrix: gl.getUniformLocation(this.discProgram, 'uViewMatrix'),
+            uProjectionMatrix: gl.getUniformLocation(this.discProgram, 'uProjectionMatrix'),
+            uCameraPosition: gl.getUniformLocation(this.discProgram, 'uCameraPosition'),
+            uScaleFactor: gl.getUniformLocation(this.discProgram, 'uScaleFactor'),
+            uRotationAxisVelocity: gl.getUniformLocation(this.discProgram, 'uRotationAxisVelocity')
         };
 
         /////////////////////////////////// GEOMETRY / MESH SETUP
@@ -167,8 +113,8 @@ export class InfiniteGridMenu3 {
         this.discGeo = new DiscGeometry(36, 1);
         this.discBuffers = this.discGeo.data;
         this.discVAO = makeVertexArray(gl, [
-            [makeBuffer(gl, this.discBuffers.vertices, gl.STATIC_DRAW), this.testLocations.aModelPosition, 3],
-            [makeBuffer(gl, this.discBuffers.uvs, gl.STATIC_DRAW), this.testLocations.aModelUvs, 2]
+            [makeBuffer(gl, this.discBuffers.vertices, gl.STATIC_DRAW), this.discLocations.aModelPosition, 3],
+            [makeBuffer(gl, this.discBuffers.uvs, gl.STATIC_DRAW), this.discLocations.aModelUvs, 2]
         ], (this.discBuffers.indices));
 
         this.icoGeo = new IcosahedronGeometry();
@@ -211,7 +157,7 @@ export class InfiniteGridMenu3 {
         const mat4AttribSlotCount = 4;
         const bytesPerMatrix = 16 * 4;
         for(let j = 0; j < mat4AttribSlotCount; ++j) {
-            const loc = this.testLocations.aInstanceMatrix + j;
+            const loc = this.discLocations.aInstanceMatrix + j;
             gl.enableVertexAttribArray(loc);
             gl.vertexAttribPointer(
                 loc,
@@ -255,7 +201,7 @@ export class InfiniteGridMenu3 {
          /** @type {WebGLRenderingContext} */
          const gl = this.gl;
 
-        gl.useProgram(this.testProgram);
+        gl.useProgram(this.discProgram);
 
         gl.enable(gl.CULL_FACE);
         gl.enable(gl.DEPTH_TEST);
@@ -263,13 +209,13 @@ export class InfiniteGridMenu3 {
         gl.clearColor(0, 0, 0, 0);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        gl.uniformMatrix4fv(this.testLocations.uWorldMatrix, false, this.worldMatrix);
-        gl.uniformMatrix4fv(this.testLocations.uViewMatrix, false, this.camera.matrices.view);
-        gl.uniformMatrix4fv(this.testLocations.uProjectionMatrix, false, this.camera.matrices.projection);
-        gl.uniform3f(this.testLocations.uCameraPosition, this.camera.position[0], this.camera.position[1], this.camera.position[2]);
-        gl.uniform4f(this.testLocations.uRotationAxisVelocity, this.control.rotationAxis[0], this.control.rotationAxis[1], this.control.rotationAxis[2], this.control.rotationVelocity);
-        gl.uniform1f(this.testLocations.uFrames, this.#frames);
-        gl.uniform1f(this.testLocations.uScaleFactor, this.scaleFactor);
+        gl.uniformMatrix4fv(this.discLocations.uWorldMatrix, false, this.worldMatrix);
+        gl.uniformMatrix4fv(this.discLocations.uViewMatrix, false, this.camera.matrices.view);
+        gl.uniformMatrix4fv(this.discLocations.uProjectionMatrix, false, this.camera.matrices.projection);
+        gl.uniform3f(this.discLocations.uCameraPosition, this.camera.position[0], this.camera.position[1], this.camera.position[2]);
+        gl.uniform4f(this.discLocations.uRotationAxisVelocity, this.control.rotationAxis[0], this.control.rotationAxis[1], this.control.rotationAxis[2], this.control.rotationVelocity);
+        gl.uniform1f(this.discLocations.uFrames, this.#frames);
+        gl.uniform1f(this.discLocations.uScaleFactor, this.scaleFactor);
 
         gl.bindVertexArray(this.discVAO);
 
@@ -309,8 +255,8 @@ export class InfiniteGridMenu3 {
             cameraTargetZ *= 0.9;
             this.control.snapTargetDirection = this.#findNearestSnapDirection();
         } else {
-            cameraTargetZ = this.control.rotationVelocity * 9 + this.cameraWideAngleDistance * 0.7;
-            damping = 4;
+            cameraTargetZ = this.control.rotationVelocity * 12 + this.cameraWideAngleDistance * 0.7;
+            damping = 5;
         }
 
         this.camera.position[2] += (cameraTargetZ - this.camera.position[2]) / damping;

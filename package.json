@@ -6,9 +6,11 @@
     "build": "snowpack build"
   },
   "devDependencies": {
-    "snowpack": "^3.8.8"
+    "snowpack": "^3.8.8",
+    "snowpack-plugin-glslify": "^1.0.0"
   },
   "dependencies": {
-    "gl-matrix": "^3.4.3"
+    "gl-matrix": "^3.4.3",
+    "glslify": "^7.1.1"
   }
 }

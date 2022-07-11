@@ -5,7 +5,9 @@
 module.exports = {
   root: './src/',
   mount: {},
-  plugins: [],
+  plugins: [
+    ['snowpack-plugin-glslify', { "compress": false }]
+  ],
   devOptions: {
     port: 1234
   },
