@@ -1,4 +1,5 @@
-import { mat4, quat, vec2, vec3 } from "gl-matrix";
+import { mat3, mat4, quat, vec2, vec3 } from "gl-matrix";
+import { DiscGeometry } from "./geometry/disc-geometry";
 import { IcosahedronGeometry } from "./geometry/icosahedron-geometry";
 import { ArcballControl } from './utils/arcball-control';
 import { createAndSetupTexture, createFramebuffer, createProgram, makeBuffer, makeVertexArray, resizeCanvasToDisplaySize, setFramebuffer } from './utils/webgl-utils';
@@ -9,20 +10,35 @@ const testVertShaderSource = `#version 300 es
     uniform mat4 uWorldMatrix;
     uniform mat4 uViewMatrix;
     uniform mat4 uProjectionMatrix;
-    uniform mat4 uWorldInverseTransposeMatrix;
     uniform vec3 uCameraPosition;
+    uniform vec4 uRotationAxisVelocity;
 
     in vec3 aModelPosition;
     in vec3 aModelNormal;
+    in vec2 aModelUvs;
+    in mat4 aInstanceMatrix;
 
-    out vec4 vColor;
+    out vec2 vUvs;
+    out float vAlpha;
 
     void main() {
-        vec4 worldPosition = uWorldMatrix * vec4(aModelPosition, 1.);
+        vec4 worldPosition = aInstanceMatrix * uWorldMatrix * vec4(aModelPosition, 1.);
+
+
+        vec4 discOriginPos = aInstanceMatrix * uWorldMatrix * vec4(0., 0., 0., 1.);
+        float radius = length(discOriginPos.xyz);
+        vec3 velocityDirection = cross(discOriginPos.xyz, uRotationAxisVelocity.xyz);
+        vec3 relativeVertexPos = worldPosition.xyz - discOriginPos.xyz;
+        float offsetStrength = dot(velocityDirection, relativeVertexPos);
+        offsetStrength = uRotationAxisVelocity.w * offsetStrength * 2.;
+        worldPosition.xyz += velocityDirection * offsetStrength;
+        worldPosition.xyz = radius * normalize(worldPosition.xyz);
+
+
         gl_Position = uProjectionMatrix * uViewMatrix * worldPosition;
-        gl_PointSize = pow(max(0., worldPosition.z), 3.) * 20.;
-        gl_PointSize *= 3.;
-        vColor = vec4(1.);
+
+        vAlpha = pow(normalize(worldPosition.xyz).z, 1.);
+        vUvs = aModelUvs;
     }
 `;
 const testFragShaderSource = `#version 300 es
@@ -35,12 +51,13 @@ const testFragShaderSource = `#version 300 es
 
     out vec4 outColor;
 
-    in vec4 vColor;
+    in vec2 vUvs;
+    in float vAlpha;
 
     void main() {
-        vec2 st = gl_PointCoord * 2. - 1.;
-        vec4 color = vec4(1., 1., 1., (1. - smoothstep(0.9, 1., length(st))) * 0.3) * vColor;
-        outColor = color;
+        outColor = vec4(vUvs, 1., 1.);
+
+        outColor *= vAlpha;
     }
 `;
 
@@ -48,7 +65,7 @@ export class InfiniteGridMenu3 {
 
     TARGET_FRAME_DURATION = 1000 / 60;  // 60 fps
 
-    SPHERE_RADIUS = 1;
+    SPHERE_RADIUS = 2;
 
     #time = 0;
     #deltaTime = 0;
@@ -129,32 +146,38 @@ export class InfiniteGridMenu3 {
         this.drawBufferSize = vec2.clone(this.viewportSize);
 
         // setup programs
-        this.testProgram = createProgram(gl, [testVertShaderSource, testFragShaderSource], null, { aModelPosition: 0, aModelNormal: 1 });
+        this.testProgram = createProgram(gl, [testVertShaderSource, testFragShaderSource], null, { aModelPosition: 0, aModelNormal: 1, aModelUvs: 2, aInstanceMatrix: 3 });
 
         // find the locations
         this.testLocations = {
             aModelPosition: gl.getAttribLocation(this.testProgram, 'aModelPosition'),
-            aModelNormal: gl.getAttribLocation(this.testProgram, 'aModelNormal'),
+            aModelUvs: gl.getAttribLocation(this.testProgram, 'aModelUvs'),
+            aInstanceMatrix: gl.getAttribLocation(this.testProgram, 'aInstanceMatrix'),
             uWorldMatrix: gl.getUniformLocation(this.testProgram, 'uWorldMatrix'),
             uViewMatrix: gl.getUniformLocation(this.testProgram, 'uViewMatrix'),
             uProjectionMatrix: gl.getUniformLocation(this.testProgram, 'uProjectionMatrix'),
-            uWorldInverseTransposeMatrix: gl.getUniformLocation(this.testProgram, 'uWorldInverseTransposeMatrix'),
             uCameraPosition: gl.getUniformLocation(this.testProgram, 'uCameraPosition'),
-            uScaleFactor: gl.getUniformLocation(this.testProgram, 'uScaleFactor')
+            uScaleFactor: gl.getUniformLocation(this.testProgram, 'uScaleFactor'),
+            uRotationAxisVelocity: gl.getUniformLocation(this.testProgram, 'uRotationAxisVelocity')
         };
 
         /////////////////////////////////// GEOMETRY / MESH SETUP
 
-        // create icosahedron VAO
+        // create disc VAO
+        this.discGeo = new DiscGeometry(36, 1);
+        this.discBuffers = this.discGeo.data;
+        this.discVAO = makeVertexArray(gl, [
+            [makeBuffer(gl, this.discBuffers.vertices, gl.STATIC_DRAW), this.testLocations.aModelPosition, 3],
+            [makeBuffer(gl, this.discBuffers.uvs, gl.STATIC_DRAW), this.testLocations.aModelUvs, 2]
+        ], (this.discBuffers.indices));
+
         this.icoGeo = new IcosahedronGeometry();
         this.icoGeo.subdivide(1).spherize(this.SPHERE_RADIUS);
+        this.instancePositions = this.icoGeo.vertices.map(v => v.position);
+        this.DISC_INSTANCE_COUNT = this.icoGeo.vertices.length;
+        this.#initDiscInstances(this.DISC_INSTANCE_COUNT);
 
-        this.icoBuffers = this.icoGeo.data;
-        this.icoVAO = makeVertexArray(gl, [
-            [makeBuffer(gl, this.icoBuffers.vertices, gl.STATIC_DRAW), 0, 3],
-            [makeBuffer(gl, this.icoBuffers.normals, gl.STATIC_DRAW), 1, 3]
-        ], (this.icoBuffers.indices));
-        this.icoModelMatrix = mat4.create();
+        this.worldMatrix = mat4.create();
     
         // init the pointer rotate control
         this.control = new ArcballControl(this.canvas, () => this.#onControlUpdate());
@@ -167,9 +190,65 @@ export class InfiniteGridMenu3 {
         if (onInit) onInit(this);
     }
 
+    #initDiscInstances(count) {
+        /** @type {WebGLRenderingContext} */
+        const gl = this.gl;
+
+        this.discInstances = {
+            matricesArray: new Float32Array(count * 16),
+            matrices: [],
+            buffer: gl.createBuffer()
+        }
+        for(let i = 0; i < count; ++i) {
+            const instanceMatrixArray = new Float32Array(this.discInstances.matricesArray.buffer, i * 16 * 4, 16);
+            instanceMatrixArray.set(mat4.create());
+            this.discInstances.matrices.push(instanceMatrixArray);
+        }
+
+        gl.bindVertexArray(this.discVAO);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.discInstances.buffer);
+        gl.bufferData(gl.ARRAY_BUFFER, this.discInstances.matricesArray.byteLength, gl.DYNAMIC_DRAW);
+        const mat4AttribSlotCount = 4;
+        const bytesPerMatrix = 16 * 4;
+        for(let j = 0; j < mat4AttribSlotCount; ++j) {
+            const loc = this.testLocations.aInstanceMatrix + j;
+            gl.enableVertexAttribArray(loc);
+            gl.vertexAttribPointer(
+                loc,
+                4,
+                gl.FLOAT,
+                false,
+                bytesPerMatrix, // stride, num bytes to advance to get to next set of values
+                j * 4 * 4 // one row = 4 values each 4 bytes
+            );
+            gl.vertexAttribDivisor(loc, 1); // it sets this attribute to only advance to the next value once per instance
+        }
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+        gl.bindVertexArray(null);
+    }
+
     #animate(deltaTime) {
+        /** @type {WebGLRenderingContext} */
+        const gl = this.gl;
+
         this.control.update(deltaTime);
-        mat4.fromQuat(this.icoModelMatrix, this.control.orientation);
+
+        // update the instance matrices from the current orientation
+        let positions = this.instancePositions.map(p => vec3.transformQuat(vec3.create(), p, this.control.orientation));
+        positions.forEach((p, ndx) => {
+            const scale = (Math.abs(p[2]) * 0.6 + 0.4) * 0.15;
+            const matrix = mat4.create();
+            mat4.translate(matrix, matrix, vec3.negate(vec3.create(), p));
+            mat4.scale(matrix, matrix, [scale, scale, scale]);
+            mat4.multiply(matrix, matrix, mat4.targetTo(mat4.create(), [0, 0, 0], p, [0, 1, 0]));
+
+            mat4.copy(this.discInstances.matrices[ndx], matrix);
+        });
+
+        // upload the instance matrix buffer
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.discInstances.buffer);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.discInstances.matricesArray);
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
     }
 
     #render() {
@@ -180,28 +259,27 @@ export class InfiniteGridMenu3 {
 
         gl.enable(gl.CULL_FACE);
         gl.enable(gl.DEPTH_TEST);
-        gl.cullFace(gl.FRONT);
-        gl.enable(gl.BLEND);
-        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-        gl.depthMask(false);    // disable depth writing_ALPHA);
 
         gl.clearColor(0, 0, 0, 0);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        gl.uniformMatrix4fv(this.testLocations.uWorldMatrix, false, this.icoModelMatrix);
+        gl.uniformMatrix4fv(this.testLocations.uWorldMatrix, false, this.worldMatrix);
         gl.uniformMatrix4fv(this.testLocations.uViewMatrix, false, this.camera.matrices.view);
         gl.uniformMatrix4fv(this.testLocations.uProjectionMatrix, false, this.camera.matrices.projection);
         gl.uniform3f(this.testLocations.uCameraPosition, this.camera.position[0], this.camera.position[1], this.camera.position[2]);
+        gl.uniform4f(this.testLocations.uRotationAxisVelocity, this.control.rotationAxis[0], this.control.rotationAxis[1], this.control.rotationAxis[2], this.control.rotationVelocity);
         gl.uniform1f(this.testLocations.uFrames, this.#frames);
         gl.uniform1f(this.testLocations.uScaleFactor, this.scaleFactor);
 
-        // update the world inverse transpose
-        const worldInverseTranspose = mat4.invert(mat4.create(), this.icoModelMatrix);
-        mat4.transpose(worldInverseTranspose, worldInverseTranspose);
-        gl.uniformMatrix4fv(this.testLocations.uWorldInverseTransposeMatrix, false, worldInverseTranspose);
+        gl.bindVertexArray(this.discVAO);
 
-        gl.bindVertexArray(this.icoVAO);
-        gl.drawElements(gl.POINTS, this.icoBuffers.indices.length, gl.UNSIGNED_SHORT, 0);
+        gl.drawElementsInstanced(
+            gl.TRIANGLES,
+            this.discBuffers.indices.length,
+            gl.UNSIGNED_SHORT,
+            0,
+            this.DISC_INSTANCE_COUNT
+        );
     }
 
     #updateCameraMatrix() {
@@ -220,7 +298,7 @@ export class InfiniteGridMenu3 {
         } else {
             this.cameraWideAngleDistance = (size / 2) / Math.tan ((this.camera.fov * this.camera.aspect) / 2);
         }
-        //this.cameraWideAngleDistance -= 0.5;
+        this.cameraWideAngleDistance -= 0.5;
     }
 
     #onControlUpdate() {
@@ -231,7 +309,7 @@ export class InfiniteGridMenu3 {
             cameraTargetZ *= 0.9;
             this.control.snapTargetDirection = this.#findNearestSnapDirection();
         } else {
-            cameraTargetZ = this.control.pointerRotationVelocity * 9 + this.cameraWideAngleDistance * 0.7;
+            cameraTargetZ = this.control.rotationVelocity * 9 + this.cameraWideAngleDistance * 0.7;
             damping = 4;
         }
 
@@ -247,14 +325,14 @@ export class InfiniteGridMenu3 {
         const nt = vec3.transformQuat(vec3.create(), n, inversOrientation);
         
         // find the nearest vertex 
-        const vertices = this.icoGeo.vertices;
+        const vertices = this.instancePositions;
         let maxD = -1;
         let nearestVertexPos;
         for(let i=0; i<vertices.length; ++i) {
-            const d = vec3.dot(nt, vertices[i].position);
+            const d = vec3.dot(nt, vertices[i]);
             if (d > maxD) {
                 maxD = d;
-                nearestVertexPos = vertices[i].position;
+                nearestVertexPos = vertices[i];
             }
         }
 

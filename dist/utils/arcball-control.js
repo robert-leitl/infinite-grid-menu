@@ -11,6 +11,12 @@ export class ArcballControl {
     // the current pointer rotation as a quarternion
     pointerRotation = quat.create();
 
+    // the velocity of the rotation
+    rotationVelocity = 0;
+
+    // the axis of the rotation
+    rotationAxis = vec3.create();
+
     // the direction to move the snap target to (in world space)
     snapDirection = vec3.fromValues(0, 0, 1);
 
@@ -107,6 +113,9 @@ export class ArcballControl {
         const combinedQuat = quat.multiply(quat.create(), snapRotation, this.pointerRotation);
         this.orientation = quat.multiply(quat.normalize(quat.create(), quat.create()), combinedQuat, this.orientation);
         quat.normalize(this.orientation, this.orientation);
+
+        // calculate the rotation axis and velocity from the combined rotation
+        this.rotationVelocity = quat.getAxisAngle(this.rotationAxis, combinedQuat);
 
         this.updateCallback();
     }

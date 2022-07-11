@@ -30,6 +30,10 @@ export class Geometry {
         return this;
     }
 
+    get lastVertex() {
+        return this.vertices[this.vertices.length - 1];
+    }
+
     subdivide(divisions = 1) {
         const midPointCache = {};
         let f = this.faces;
