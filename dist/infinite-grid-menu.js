@@ -1,3 +1,6 @@
+import * as __SNOWPACK_ENV__ from './web_modules/env.js';
+import.meta.env = __SNOWPACK_ENV__;
+
 import { mat3, mat4, quat, vec2, vec3 } from "./web_modules/pkg/gl-matrix.js";
 import { DiscGeometry } from "./geometry/disc-geometry.js";
 import { IcosahedronGeometry } from "./geometry/icosahedron-geometry.js";
@@ -37,6 +40,9 @@ export class InfiniteGridMenu {
             inversProjection: mat4.create()
         }
     };
+
+    // the index of the vertex currently nearste to the center positio
+    nearestVertexIndex = null;
 
     constructor(canvas, onInit = null) {
         this.canvas = canvas;
@@ -104,7 +110,8 @@ export class InfiniteGridMenu {
             uProjectionMatrix: gl.getUniformLocation(this.discProgram, 'uProjectionMatrix'),
             uCameraPosition: gl.getUniformLocation(this.discProgram, 'uCameraPosition'),
             uScaleFactor: gl.getUniformLocation(this.discProgram, 'uScaleFactor'),
-            uRotationAxisVelocity: gl.getUniformLocation(this.discProgram, 'uRotationAxisVelocity')
+            uRotationAxisVelocity: gl.getUniformLocation(this.discProgram, 'uRotationAxisVelocity'),
+            uTex: gl.getUniformLocation(this.discProgram, 'uTex')
         };
 
         /////////////////////////////////// GEOMETRY / MESH SETUP
@@ -124,6 +131,8 @@ export class InfiniteGridMenu {
         this.#initDiscInstances(this.DISC_INSTANCE_COUNT);
 
         this.worldMatrix = mat4.create();
+
+        this.#initTexture();
     
         // init the pointer rotate control
         this.control = new ArcballControl(this.canvas, () => this.#onControlUpdate());
@@ -134,6 +143,22 @@ export class InfiniteGridMenu {
         this.resize();
 
         if (onInit) onInit(this);
+    }
+
+    #initTexture() {
+        /** @type {WebGLRenderingContext} */
+        const gl = this.gl;
+
+        this.tex = createAndSetupTexture(gl, gl.LINEAR, gl.LINEAR, gl.REPEAT, gl.REPEAT);
+        gl.bindTexture(gl.TEXTURE_2D, this.tex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 480, 480, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+
+        this.image = new Image();
+        this.image.src = new URL('../assets/tex.jpg', import.meta.url);
+        this.image.onload = () => {
+            gl.bindTexture(gl.TEXTURE_2D, this.tex);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 480, 480, 0, gl.RGBA, gl.UNSIGNED_BYTE, this.image);
+        }
     }
 
     #initDiscInstances(count) {
@@ -219,6 +244,9 @@ export class InfiniteGridMenu {
         gl.uniform4f(this.discLocations.uRotationAxisVelocity, this.control.rotationAxis[0], this.control.rotationAxis[1], this.control.rotationAxis[2], this.control.rotationVelocity);
         gl.uniform1f(this.discLocations.uFrames, this.#frames);
         gl.uniform1f(this.discLocations.uScaleFactor, this.scaleFactor);
+        gl.uniform1i(this.discLocations.uTex, 0);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.tex);
 
         gl.bindVertexArray(this.discVAO);
 
@@ -267,8 +295,10 @@ export class InfiniteGridMenu {
         let cameraTargetZ = 3;
 
         if (!this.control.isPointerDown) {
+            const nearestVertexIndex = this.#findNearestVertexIndex();
+            const snapDirection = vec3.normalize(vec3.create(), this.#getVertexWorldPosition(nearestVertexIndex));
             // focus on the selected item
-            this.control.snapTargetDirection = this.#findNearestSnapDirection();
+            this.control.snapTargetDirection = snapDirection;
         } else {
             cameraTargetZ += (this.control.rotationVelocity * 80) + 2.25;
             damping = 7;
@@ -278,7 +308,7 @@ export class InfiniteGridMenu {
         this.#updateCameraMatrix();
     }
 
-    #findNearestSnapDirection() {
+    #findNearestVertexIndex() {
         // map the XY-Plane normal to the model space
         const n = this.control.snapDirection;
         const inversOrientation = quat.conjugate(quat.create(), this.control.orientation);
@@ -288,17 +318,20 @@ export class InfiniteGridMenu {
         // find the nearest vertex 
         const vertices = this.instancePositions;
         let maxD = -1;
-        let nearestVertexPos, nearestVertexIndex;
+        let nearestVertexIndex;
         for(let i=0; i<vertices.length; ++i) {
             const d = vec3.dot(nt, vertices[i]);
             if (d > maxD) {
                 maxD = d;
                 nearestVertexIndex = i;
-                nearestVertexPos = vertices[i];
             }
         }
 
-        const snapDirection = vec3.transformQuat(vec3.create(), nearestVertexPos, this.control.orientation);
-        return vec3.normalize(snapDirection, snapDirection);
+        return nearestVertexIndex;
+    }
+
+    #getVertexWorldPosition(index) {
+        const nearestVertexPos = this.instancePositions[index];
+        return vec3.transformQuat(vec3.create(), nearestVertexPos, this.control.orientation);
     }
 }
