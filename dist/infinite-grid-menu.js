@@ -1,6 +1,3 @@
-import * as __SNOWPACK_ENV__ from './web_modules/env.js';
-import.meta.env = __SNOWPACK_ENV__;
-
 import { mat3, mat4, quat, vec2, vec3 } from "./web_modules/pkg/gl-matrix.js";
 import { DiscGeometry } from "./geometry/disc-geometry.js";
 import { IcosahedronGeometry } from "./geometry/icosahedron-geometry.js";
@@ -135,7 +132,7 @@ export class InfiniteGridMenu {
         this.#initTexture();
     
         // init the pointer rotate control
-        this.control = new ArcballControl(this.canvas, () => this.#onControlUpdate());
+        this.control = new ArcballControl(this.canvas, (deltaTime) => this.#onControlUpdate(deltaTime));
         
         this.#updateCameraMatrix();
         this.#updateProjectionMatrix(gl);
@@ -154,7 +151,7 @@ export class InfiniteGridMenu {
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 480, 480, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
 
         this.image = new Image();
-        this.image.src = new URL('../assets/tex.jpg', import.meta.url);
+        this.image.src = './assets/tex.jpg';
         this.image.onload = () => {
             gl.bindTexture(gl.TEXTURE_2D, this.tex);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 480, 480, 0, gl.RGBA, gl.UNSIGNED_BYTE, this.image);
@@ -206,7 +203,7 @@ export class InfiniteGridMenu {
 
         // update the instance matrices from the current orientation
         let positions = this.instancePositions.map(p => vec3.transformQuat(vec3.create(), p, this.control.orientation));
-        const scale = 0.25 + (Math.abs(this.camera.position[2]) / this.cameraWideAngleDistance) * 0.0;
+        const scale = 0.25;
         const SCALE_INTENSITY = 1;
         positions.forEach((p, ndx) => {
             const s = ((Math.abs(p[2]) / this.SPHERE_RADIUS) * SCALE_INTENSITY + (1 - SCALE_INTENSITY)) * scale;
@@ -277,21 +274,11 @@ export class InfiniteGridMenu {
 
         mat4.perspective(this.camera.matrices.projection, this.camera.fov, this.camera.aspect, this.camera.near, this.camera.far);
         mat4.invert(this.camera.matrices.inversProjection, this.camera.matrices.projection);
-
-        const size = this.SPHERE_RADIUS * 2;
-        if (this.camera.aspect > 1) {
-            this.cameraWideAngleDistance = (size / 2) / Math.tan(this.camera.fov / 2);
-            this.cameraFocusAngleDistance = 1.5 / Math.tan(this.camera.fov / 2);
-        } else {
-            this.cameraWideAngleDistance = (size / 2) / Math.tan ((this.camera.fov * this.camera.aspect) / 2);
-            this.cameraFocusAngleDistance = 1.5 / Math.tan ((this.camera.fov * this.camera.aspect) / 2);
-        }
-        //console.log(this.cameraFocusAngleDistance, this.cameraWideAngleDistance);
-        //this.cameraWideAngleDistance += 0.8;
     }
 
-    #onControlUpdate() {
-        let damping = 5;
+    #onControlUpdate(deltaTime) {
+        const timeScale = 16 / deltaTime;
+        let damping = 5 * timeScale;
         let cameraTargetZ = 3;
 
         if (!this.control.isPointerDown) {
@@ -301,7 +288,7 @@ export class InfiniteGridMenu {
             this.control.snapTargetDirection = snapDirection;
         } else {
             cameraTargetZ += (this.control.rotationVelocity * 80) + 2.25;
-            damping = 7;
+            damping = 7 * timeScale;
         }
 
         this.camera.position[2] += (cameraTargetZ - this.camera.position[2]) / damping;

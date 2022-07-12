@@ -56,16 +56,16 @@ export class ArcballControl {
     }
 
     update(deltaTime) {
-        const timeScale = 16 / (deltaTime + 0.01);
+        const timeScale = deltaTime / 16;
 
         let angleFactor = timeScale;
         let snapRotation = quat.create();
 
         if (this.isPointerDown) {
             // the intensity of the pointer to reach the new position (lower value --> slower movement)
-            const INTENSITY = 0.3;
+            const INTENSITY = 0.3 * timeScale;
             // the factor to amplify the rotation angle (higher value --> faster rotation)
-            const ANGLE_AMPLIFICATION = 5;
+            const ANGLE_AMPLIFICATION = 5 / timeScale;
 
             // get only a part of the pointer movement to smooth out the movement
             const midPointerPos = vec2.sub(vec2.create(), this.pointerPos, this.previousPointerPos);
@@ -93,7 +93,7 @@ export class ArcballControl {
             }
         } else {
             // the intensity of the continuation for the pointer rotation (lower --> shorter continuation)
-            const INTENSITY = 0.1
+            const INTENSITY = 0.1 * timeScale;
 
             // decrement the pointer rotation smoothly to the identity quaternion
             quat.slerp(this.pointerRotation, this.pointerRotation, quat.create(), INTENSITY);
@@ -125,9 +125,10 @@ export class ArcballControl {
 
         // calculate the rotation axis and velocity from the combined rotation
         this.rotationVelocity = quat.getAxisAngle(this.rotationAxis, combinedQuat) / (2 * Math.PI);
+        this.rotationVelocity /= timeScale;
         vec3.normalize(this.rotationAxis, this.rotationAxis);
 
-        this.updateCallback();
+        this.updateCallback(deltaTime);
     }
 
     quatFromVectors(a, b, out, angleFactor = 1) {
