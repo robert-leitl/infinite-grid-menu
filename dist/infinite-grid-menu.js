@@ -146,7 +146,7 @@ export class InfiniteGridMenu {
         /** @type {WebGLRenderingContext} */
         const gl = this.gl;
 
-        this.tex = createAndSetupTexture(gl, gl.LINEAR, gl.LINEAR, gl.REPEAT, gl.REPEAT);
+        this.tex = createAndSetupTexture(gl, gl.NEAREST, gl.NEAREST, gl.REPEAT, gl.REPEAT);
         gl.bindTexture(gl.TEXTURE_2D, this.tex);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 480, 480, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
 
