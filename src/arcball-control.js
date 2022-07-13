@@ -55,8 +55,8 @@ export class ArcballControl {
         canvas.style.touchAction = 'none';
     }
 
-    update(deltaTime) {
-        const timeScale = deltaTime / 16;
+    update(deltaTime, targetFrameDuration = 16) {
+        const timeScale = deltaTime / targetFrameDuration;
 
         let angleFactor = timeScale;
         let snapRotation = quat.create();

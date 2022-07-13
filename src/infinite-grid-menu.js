@@ -148,13 +148,13 @@ export class InfiniteGridMenu {
 
         this.tex = createAndSetupTexture(gl, gl.NEAREST, gl.NEAREST, gl.REPEAT, gl.REPEAT);
         gl.bindTexture(gl.TEXTURE_2D, this.tex);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 480, 480, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 902, 902, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
 
         this.image = new Image();
         this.image.src = './assets/tex.jpg';
         this.image.onload = () => {
             gl.bindTexture(gl.TEXTURE_2D, this.tex);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 480, 480, 0, gl.RGBA, gl.UNSIGNED_BYTE, this.image);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 902, 902, 0, gl.RGBA, gl.UNSIGNED_BYTE, this.image);
             gl.generateMipmap(gl.TEXTURE_2D);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -202,7 +202,7 @@ export class InfiniteGridMenu {
         /** @type {WebGLRenderingContext} */
         const gl = this.gl;
 
-        this.control.update(deltaTime);
+        this.control.update(deltaTime, this.TARGET_FRAME_DURATION);
 
         // update the instance matrices from the current orientation
         let positions = this.instancePositions.map(p => vec3.transformQuat(vec3.create(), p, this.control.orientation));
@@ -280,8 +280,8 @@ export class InfiniteGridMenu {
     }
 
     #onControlUpdate(deltaTime) {
-        const timeScale = 16 / deltaTime;
-        let damping = 5 * timeScale;
+        const timeScale = deltaTime / this.TARGET_FRAME_DURATION;
+        let damping = 5 / timeScale;
         let cameraTargetZ = 3;
 
         if (!this.control.isPointerDown) {
@@ -291,7 +291,7 @@ export class InfiniteGridMenu {
             this.control.snapTargetDirection = snapDirection;
         } else {
             cameraTargetZ += (this.control.rotationVelocity * 80) + 2.25;
-            damping = 7 * timeScale;
+            damping = 7 / timeScale;
         }
 
         this.camera.position[2] += (cameraTargetZ - this.camera.position[2]) / damping;

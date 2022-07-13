@@ -14,8 +14,14 @@ in float vAlpha;
 flat in int vInstanceId;
 
 void main() {
-    outColor = vec4(0.9, 0.7, float(vInstanceId) / 42., 1.);
+    int SIZE = 5;
+    int i = vInstanceId % (SIZE * SIZE);
+    int iX = i % SIZE;
+    int iY =(i - iX) / SIZE;
+    vec2 s = vUvs / float(SIZE);
+    vec2 st = s + vec2(float(iX) / float(SIZE), float(iY) / float(SIZE));
+    st *= 0.9;
 
-    outColor = texture(uTex, vUvs);
-    //outColor *= vAlpha;
+    outColor = texture(uTex, st);
+    outColor *= vAlpha;
 }
