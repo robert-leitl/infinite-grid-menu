@@ -41,6 +41,8 @@ export class InfiniteGridMenu {
     // the index of the vertex currently nearste to the center positio
     nearestVertexIndex = null;
 
+    smoothRotationVelocity = 0;
+
     constructor(canvas, onInit = null) {
         this.canvas = canvas;
 
@@ -206,8 +208,8 @@ export class InfiniteGridMenu {
 
         // update the instance matrices from the current orientation
         let positions = this.instancePositions.map(p => vec3.transformQuat(vec3.create(), p, this.control.orientation));
-        const scale = 0.25;
-        const SCALE_INTENSITY = 1;
+        const scale = 0.28;
+        const SCALE_INTENSITY = 0.6;
         positions.forEach((p, ndx) => {
             const s = ((Math.abs(p[2]) / this.SPHERE_RADIUS) * SCALE_INTENSITY + (1 - SCALE_INTENSITY)) * scale;
             const matrix = mat4.create();
@@ -223,6 +225,8 @@ export class InfiniteGridMenu {
         gl.bindBuffer(gl.ARRAY_BUFFER, this.discInstances.buffer);
         gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.discInstances.matricesArray);
         gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+        this.smoothRotationVelocity = this.control.rotationVelocity;
     }
 
     #render() {
@@ -241,7 +245,13 @@ export class InfiniteGridMenu {
         gl.uniformMatrix4fv(this.discLocations.uViewMatrix, false, this.camera.matrices.view);
         gl.uniformMatrix4fv(this.discLocations.uProjectionMatrix, false, this.camera.matrices.projection);
         gl.uniform3f(this.discLocations.uCameraPosition, this.camera.position[0], this.camera.position[1], this.camera.position[2]);
-        gl.uniform4f(this.discLocations.uRotationAxisVelocity, this.control.rotationAxis[0], this.control.rotationAxis[1], this.control.rotationAxis[2], this.control.rotationVelocity);
+        gl.uniform4f(
+            this.discLocations.uRotationAxisVelocity, 
+            this.control.rotationAxis[0], 
+            this.control.rotationAxis[1], 
+            this.control.rotationAxis[2], 
+            this.smoothRotationVelocity * 1.1
+        );
         gl.uniform1f(this.discLocations.uFrames, this.#frames);
         gl.uniform1f(this.discLocations.uScaleFactor, this.scaleFactor);
         gl.uniform1i(this.discLocations.uTex, 0);
@@ -280,9 +290,9 @@ export class InfiniteGridMenu {
     }
 
     #onControlUpdate(deltaTime) {
-        const timeScale = deltaTime / this.TARGET_FRAME_DURATION;
+        const timeScale = deltaTime / this.TARGET_FRAME_DURATION + 0.0001;
         let damping = 5 / timeScale;
-        let cameraTargetZ = 3;
+        let cameraTargetZ = 2.8;
 
         if (!this.control.isPointerDown) {
             const nearestVertexIndex = this.#findNearestVertexIndex();
@@ -290,7 +300,7 @@ export class InfiniteGridMenu {
             // focus on the selected item
             this.control.snapTargetDirection = snapDirection;
         } else {
-            cameraTargetZ += (this.control.rotationVelocity * 80) + 2.25;
+            cameraTargetZ += (this.control.rotationVelocity * 80) + 2.5;
             damping = 7 / timeScale;
         }
 
