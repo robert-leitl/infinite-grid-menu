@@ -15,7 +15,7 @@ export class ArcballControl {
     rotationVelocity = 0;
 
     // the axis of the rotation
-    rotationAxis = vec3.create();
+    rotationAxis = vec3.fromValues(1, 0, 0);
 
     // the direction to move the snap target to (in world space)
     snapDirection = vec3.fromValues(0, 0, 1);
@@ -23,7 +23,8 @@ export class ArcballControl {
     // the direction of the target to move to the snap direction (in world space)
     snapTargetDirection;
 
-    EPSILON = 0.0001;
+    EPSILON = 0.1;
+    IDENTITY_QUAT = quat.create();
 
     constructor(canvas, updateCallback) {
         this.canvas = canvas;
@@ -32,7 +33,8 @@ export class ArcballControl {
         this.isPointerDown = false;
         this.pointerPos = vec2.create();
         this.previousPointerPos = vec2.create();
-        this.autoRotationSpeed = 0;
+        this._rotationVelocity = 0;    // smooth rotational velocity
+        this._combinedQuat = quat.create();     // to smooth out the rotational axis
 
         canvas.addEventListener('pointerdown', e => {
             this.pointerPos = vec2.fromValues(e.clientX, e.clientY);
@@ -89,14 +91,14 @@ export class ArcballControl {
                 // get the new rotation quat
                 this.quatFromVectors(a, b, this.pointerRotation, angleFactor);
             } else {
-                quat.identity(this.pointerRotation);
+                quat.slerp(this.pointerRotation, this.pointerRotation, this.IDENTITY_QUAT, INTENSITY);
             }
         } else {
-            // the intensity of the continuation for the pointer rotation (lower --> shorter continuation)
+            // the intensity of the continuation for the pointer rotation (lower --> longer continuation)
             const INTENSITY = 0.1 * timeScale;
 
             // decrement the pointer rotation smoothly to the identity quaternion
-            quat.slerp(this.pointerRotation, this.pointerRotation, quat.create(), INTENSITY);
+            quat.slerp(this.pointerRotation, this.pointerRotation, this.IDENTITY_QUAT, INTENSITY);
 
             if (this.snapTargetDirection) {
                 // defines the strength of snapping rotation (lower --> less strong)
@@ -118,15 +120,37 @@ export class ArcballControl {
 
         // combine the pointer rotation with the snap rotation and add it to the orientation
         const combinedQuat = quat.multiply(quat.create(), snapRotation, this.pointerRotation);
-        this.orientation = quat.multiply(quat.normalize(quat.create(), quat.create()), combinedQuat, this.orientation);
+        this.orientation = quat.multiply(quat.create(), combinedQuat, this.orientation);
         quat.normalize(this.orientation, this.orientation);
-        if (vec3.sqrLen(this.rotationAxis) < this.EPSILON)
-            vec3.set(this.rotationAxis, 0, 1, 0);
 
-        // calculate the rotation axis and velocity from the combined rotation
-        this.rotationVelocity = quat.getAxisAngle(this.rotationAxis, combinedQuat) / (2 * Math.PI);
-        this.rotationVelocity /= timeScale;
-        vec3.normalize(this.rotationAxis, this.rotationAxis);
+        // the intensity of the rotation axis changes to reach the new axis (lower value --> slower movement)
+        const RA_INTENSITY = .8 * timeScale;
+
+        // smooth out the combined rotation axis
+        quat.slerp(this._combinedQuat, this._combinedQuat, combinedQuat, RA_INTENSITY);
+        quat.normalize(this._combinedQuat, this._combinedQuat);
+
+        // the intensity of the rotation angel to reach the new angel (lower value --> slower movement)
+        const RV_INTENSITY = 0.5 * timeScale;
+
+        // check if there is a significant change in rotation, otherwise
+        // getAxisAngle will return an arbitrary fixed axis which will result
+        // in jumps during the animation
+        const rad = Math.acos(this._combinedQuat[3]) * 2.0;
+        const s = Math.sin(rad / 2.0);
+        let rv = 0;
+        if (s > 0.000001) {
+            // calculate the rotation axis and velocity from the combined rotation
+            // --> quat.getAxisAngle(this.rotationAxis, this._combinedQuat) / (2 * Math.PI);
+            rv = rad / (2 * Math.PI);
+            this.rotationAxis[0] = this._combinedQuat[0] / s;
+            this.rotationAxis[1] = this._combinedQuat[1] / s;
+            this.rotationAxis[2] = this._combinedQuat[2] / s;
+        }
+
+        // smooth out the velocity
+        this._rotationVelocity += (rv - this._rotationVelocity) * RV_INTENSITY;
+        this.rotationVelocity = this._rotationVelocity / timeScale;
 
         this.updateCallback(deltaTime);
     }

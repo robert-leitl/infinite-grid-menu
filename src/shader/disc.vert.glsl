@@ -29,7 +29,7 @@ void main() {
     if (gl_VertexID > 0) {
         // stretch the disc according to the axis and velocity of the rotation
         vec3 rotationAxis = uRotationAxisVelocity.xyz;
-        float rotationVelocity = min(.125, uRotationAxisVelocity.w * 15.);
+        float rotationVelocity = min(.15, uRotationAxisVelocity.w * 15.);
         // the stretch direction is orthogonal to the rotation axis and the position
         vec3 stretchDir = normalize(cross(centerPos, rotationAxis));
         // the position of this vertex relative to the center position
@@ -48,7 +48,7 @@ void main() {
 
     gl_Position = uProjectionMatrix * uViewMatrix * worldPosition;
 
-    vAlpha = smoothstep(0.4, 1., normalize(worldPosition.xyz).z) * .5 + .5;
+    vAlpha = smoothstep(0.5, 1., normalize(worldPosition.xyz).z) * .9 + .1;
     vUvs = aModelUvs;
     vInstanceId = gl_InstanceID;
 }
